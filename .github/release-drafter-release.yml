@@ -1,0 +1,34 @@
+name-template: 'v$NEXT_PATCH_VERSION'
+tag-template: 'v$NEXT_PATCH_VERSION'
+filter-by-commitish: true
+categories:
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+exclude-labels:
+  - 'skip-changelog'
+autolabeler:
+  - label: 'documentation'
+    files:
+      - '*.md'
+    branch:
+      - '/docs{0,1}\/.+/'
+  - label: 'bug'
+    branch:
+      - '/fix\/.+/'
+      - '/hotfix\/.+/'
+      - '/bug\/.+/'
+      - '/bugfix\/.+/'
+    title:
+      - '/fix/i'
+      - '/hotfix/i'
+      - '/bug/i'
+      - '/bugfix/i'
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  For more details see the [full list of changes](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$NEXT_PATCH_VERSION/)

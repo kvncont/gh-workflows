@@ -1,0 +1,40 @@
+name: Release Drafter
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+      - release/v**
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - main
+      - release/v**
+
+permissions:
+  contents: read
+
+jobs:
+  update-release-draft:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release drafter (Main)
+        if: ${{ github.ref_name == 'main' || github.base_ref == 'main' }}
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release-drafter-main.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release drafter (Release)
+        if: ${{ contains(github.ref_name, 'release/v') || contains(github.base_ref, 'release/v') }}
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release-drafter-release.yml
+          commitish: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
