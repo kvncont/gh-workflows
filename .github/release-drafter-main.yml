@@ -1,0 +1,66 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+categories:
+  - title: 💥 Breaking changes
+    labels:
+      - breaking
+  - title: '🚀 New features and improvements'
+    labels:
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+  - title: '🧰 Maintenance'
+    label: 'chore'
+  - title: '📖 Docs'
+    labels: 
+      - 'documentation'
+  - title: '📦 Dependencies updates'
+    labels:
+      - 'dependencies'
+  - title: '🚦 Tests'
+    labels:
+      - 'test'
+  - title: '🎲 Others'
+    labels:
+      - '*'
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+version-resolver:
+  major:
+    labels:
+      - 'breaking'
+  minor:
+    labels:
+      - 'enhancement'
+  patch:
+    labels:
+      - 'bug'
+      - 'security'
+      - 'maintenance'
+      - 'documentation'
+      - 'dependencies'
+      - 'test'
+      - 'chore'
+exclude-labels:
+  - 'skip-changelog'
+autolabeler:
+  - label: 'documentation'
+    files:
+      - '*.md'
+    branch:
+      - '/docs{0,1}\/.+/'
+  - label: 'bug'
+    branch:
+      - '/fix\/.+/'
+    title:
+      - '/fix/i'
+  - label: 'enhancement'
+    branch:
+      - '/feature\/.+/'
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  For more details see the [full list of changes](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION/)
