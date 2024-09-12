@@ -1,0 +1,66 @@
+name: Maven Build
+
+on:
+  workflow_call:
+    inputs:
+      pom-file:
+        required: false
+        type: string
+        default: ./pom.xml
+      maven-goals:
+        required: false
+        type: string
+        default: clean package -DskipTests
+      maven-opts:
+        required: false
+        type: string
+        default: -Xmx1024m
+      java-version:
+        required: false
+        type: number
+        default: 21
+      
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK (Maven)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+          cache: maven
+
+      - name: Maven Build
+        env:
+          MAVEN_OPTS: ${{ inputs.maven-opts }}
+        run: |
+          mvn -B -U ${{ inputs.maven-goals }} -f ${{ inputs.pom-file }}
+
+      - name: Zip Target
+        run: zip -r target.zip target
+
+      - name: Find and Zip Artifact
+        run: |
+          target_dir=$(find . -type d -name "target" | head -n 1)
+          if [ -z "$target_dir" ]; then
+            echo "No target directory found!"
+            exit 1
+          fi
+
+          artifact=$(find "$target_dir" -type f \( -name "*.jar" -o -name "*.ear" -o -name "*.war" \) | head -n 1)
+          if [ -z "$artifact" ]; then
+            echo "No artifact found!"
+            exit 1
+          fi
+          zip -j artifact.zip "$artifact"
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact
+          path: artifact.zip
