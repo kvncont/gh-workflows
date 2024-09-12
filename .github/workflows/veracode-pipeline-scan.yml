@@ -15,6 +15,10 @@ on:
 jobs:
   pipeline_scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      actions: write
     name: pipeline scan
     steps:
       - name: Download Veracode Artifact
