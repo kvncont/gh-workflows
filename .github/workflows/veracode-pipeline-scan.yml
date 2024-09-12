@@ -1,0 +1,31 @@
+name: Veracode Pipeline Scan
+
+on:
+  workflow_call:
+    secrets:
+      veracode-vid:
+        required: true
+      veracode-vkey:
+        required: true
+
+jobs:
+  pipeline_scan:
+    runs-on: ubuntu-latest
+    name: pipeline scan
+    steps:
+      - name: Download Veracode Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact
+
+      - name: Pipeline scan
+        id: pipeline-scan
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.12
+        with:
+          vid: ${{ secrets.veracode-vid }}
+          vkey: ${{ secrets.veracode-vkey }}
+          file: artifact.zip
+          fail_build: true
+          fail_on_severity: "Hight, Very High"
+          veracode_policy_name: "Veracode Recommended Low"
+          
