@@ -2,6 +2,10 @@ name: Veracode Pipeline Scan
 
 on:
   workflow_call:
+    inputs:
+      run-id:
+        required: false
+        type: number
     secrets:
       veracode-vid:
         required: true
@@ -18,7 +22,7 @@ jobs:
         with:
           name: artifact
           run-id: ${{ github.event.workflow_run.id }}
-
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pipeline scan
         id: pipeline-scan
