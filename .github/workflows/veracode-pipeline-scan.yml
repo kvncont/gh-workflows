@@ -15,17 +15,14 @@ on:
 jobs:
   pipeline_scan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      actions: write
+    permissions: write-all
     name: pipeline scan
     steps:
       - name: Download Veracode Artifact
         uses: actions/download-artifact@v4
         with:
           name: artifact
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ github.event.workflow_run.id || github.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pipeline scan
