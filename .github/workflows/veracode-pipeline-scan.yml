@@ -34,5 +34,7 @@ jobs:
           file: artifact.zip
           fail_build: true
           veracode_policy_name: "Veracode Recommended Low"
-          # fail_on_severity: "High,Very High"
+          fail_on_severity: "'High,Very High'"
+          issue_details: true
+
           
