@@ -33,6 +33,6 @@ jobs:
           vkey: ${{ secrets.veracode-vkey }}
           file: artifact.zip
           fail_build: true
-          fail_on_severity: "High,Very High"
           veracode_policy_name: "Veracode Recommended Low"
+          # fail_on_severity: "High,Very High"
           
