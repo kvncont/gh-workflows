@@ -1,19 +1,35 @@
-name: Issue Project Mapping 
+name: Issue Project Mapping
 
 on:
   workflow_call:
+    inputs:
+      project-url:
+        required: true
+        type: string
+        description: "URL of the project board"
+      labels:
+        required: false
+        type: string
+        description: "Comma separated list of labels"
+      label-operator:
+        required: false
+        type: string
+        description: "AND, OR or NOT operator for labels"
+    secrets:
+      gh-token:
+        required: true
+        description: "GitHub Token"
 
   issues:
     types: [ labeled ]
-      
+
 jobs:
   add-to-project:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/add-to-project@v1.0.2
         with:
-          project-url: https://github.com/users/kvncont/projects/3
-          github-token: ${{ secrets.GH_TOKEN_PROJECT_MAPPING }}
-          labeled: security, bug
-          label-operator: OR
-          
+          project-url: ${{ inputs.project-url }}
+          github-token: ${{ secrets.gh-token }}
+          labeled: ${{ inputs.labels}}
+          label-operator: ${{ inputs.label-operator }}
