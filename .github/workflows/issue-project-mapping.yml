@@ -20,9 +20,6 @@ on:
         required: true
         description: "GitHub Token"
 
-  issues:
-    types: [ labeled ]
-
 jobs:
   add-to-project:
     runs-on: ubuntu-latest
