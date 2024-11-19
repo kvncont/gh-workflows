@@ -1,0 +1,14 @@
+name: Required Workflow
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  required-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: my-required-step
+        run: |
+          echo "Hello ${{ vars.MSG }}"
+  
