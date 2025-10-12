@@ -1,0 +1,56 @@
+name: ServiceNow
+
+on:
+  workflow_dispath:
+      
+jobs:
+  
+  terraform-plan:
+    runs-on: ubuntu-latest
+    outputs:
+      change-request-number: ${{ steps.create.outputs.change-request-number }}
+    steps:
+      - name: Terraform Plan
+        run: echo "terraform plan"
+
+      - name: ServiceNow Change
+        uses: ServiceNow/servicenow-devops-change@v6.1.0
+        id: create
+        with:
+          devops-integration-token: ${{ secrets.SN_DEVOPS_INTEGRATION_TOKEN }}
+          instance-url: ${{ secrets.SN_INSTANCE_URL }}
+          tool-id: ${{ secrets.SN_ORCHESTRATION_TOOL_ID }}
+          context-github: ${{ toJSON(github) }}
+          job-name: 'terraform-plan'
+          change-request: '{"setCloseCode":"true","autoCloseChange":true,"attributes":{"short_description":"Automated Software Deployment","description":"Automated Software Deployment.","assignment_group":"a715cd759f2002002920bde8132e7018","implementation_plan":"Software update is tested and results can be found in Test Summaries Tab; When the change is approved the implementation happens automated by the CICD pipeline within the change planned start and end time window.","backout_plan":"When software fails in production, the previous software release will be re-deployed.","test_plan":"Testing if the software was successfully deployed"}}'
+          interval: '100'
+          timeout: '3600'
+          changeCreationTimeOut: '3600'
+          abortOnChangeCreationFailure: true
+          abortOnChangeStepTimeout: true
+          deployment-gate: '{"environment":"production","jobName":"terraform-apply"}'
+  
+  terraform-apply:
+    runs-on: ubuntu-latest
+    needs: [terraform-plan]
+    environment: 
+      name: production  
+    steps:
+      - name: Terraform Apply
+        run: echo "terraform apply"
+      
+      - name: ServiceNow Update Change
+        uses: ServiceNow/servicenow-devops-update-change@v3.1.0
+        if: always()
+        with:
+          devops-integration-token: ${{ secrets.SN_DEVOPS_INTEGRATION_TOKEN }}
+          instance-url: ${{ secrets.SN_INSTANCE_URL }}
+          tool-id: ${{ secrets.SN_ORCHESTRATION_TOOL_ID }}
+          context-github: ${{ toJSON(github) }}
+          change-request-number: '${{ needs.terraform-plan.outputs.change_request_number }}'
+          change-request-details: |
+            {
+            "close_code":"successful",
+            "close_notes":"Closing during Github Actions CustomActionUpdate",
+            "state":"3"
+            }
