@@ -8,8 +8,8 @@ jobs:
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    outputs:
-      change-request-number: ${{ steps.create.outputs.change-request-number }}
+    # outputs:
+    #   change-request-number: ${{ steps.create.outputs.change-request-number }}
     steps:
       - name: Terraform Plan
         run: echo "terraform plan"
@@ -29,7 +29,7 @@ jobs:
           changeCreationTimeOut: '180'
           abortOnChangeCreationFailure: true
           abortOnChangeStepTimeout: false
-          # deployment-gate: '{"environment":"production","jobName":"Terraform Apply"}'
+          deployment-gate: '{"environment":"production","jobName":"Terraform Apply"}'
   
   terraform-apply:
     name: Terraform Apply
@@ -41,18 +41,18 @@ jobs:
       - name: Terraform Apply
         run: echo "terraform apply"
       
-      - name: ServiceNow Update Change
-        uses: ServiceNow/servicenow-devops-update-change@v3.1.0
-        if: always()
-        with:
-          devops-integration-token: ${{ secrets.SN_DEVOPS_INTEGRATION_TOKEN }}
-          instance-url: ${{ secrets.SN_INSTANCE_URL }}
-          tool-id: ${{ secrets.SN_ORCHESTRATION_TOOL_ID }}
-          context-github: ${{ toJSON(github) }}
-          change-request-number: '${{ needs.terraform-plan.outputs.change_request_number }}'
-          change-request-details: |
-            {
-            "close_code":"successful",
-            "close_notes":"Closing during Github Actions CustomActionUpdate",
-            "state":"3"
-            }
+      # - name: ServiceNow Update Change
+      #   uses: ServiceNow/servicenow-devops-update-change@v3.1.0
+      #   if: always()
+      #   with:
+      #     devops-integration-token: ${{ secrets.SN_DEVOPS_INTEGRATION_TOKEN }}
+      #     instance-url: ${{ secrets.SN_INSTANCE_URL }}
+      #     tool-id: ${{ secrets.SN_ORCHESTRATION_TOOL_ID }}
+      #     context-github: ${{ toJSON(github) }}
+      #     change-request-number: '${{ needs.terraform-plan.outputs.change_request_number }}'
+      #     change-request-details: |
+      #       {
+      #       "close_code":"successful",
+      #       "close_notes":"Closing during Github Actions CustomActionUpdate",
+      #       "state":"3"
+      #       }
