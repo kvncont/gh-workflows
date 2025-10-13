@@ -25,7 +25,7 @@ jobs:
           job-name: 'Terraform Plan'
           change-request: |
             {
-              "setCloseCode":"true",
+              "setCloseCode":true,
               "autoCloseChange":true,
               "attributes": {
                 "chg_model":{"name": "DevOps"},
