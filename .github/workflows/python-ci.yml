@@ -82,7 +82,7 @@ on:
         value: ${{ jobs.build.outputs.zip-name }}
 
 jobs:
-  build:
+  python-ci:
     runs-on: ubuntu-latest
     outputs:
       artifact-name: ${{ inputs.artifact-name }}
@@ -139,7 +139,7 @@ jobs:
           # Install dependencies into package directory if needed
           if [ "${{ inputs.include-dependencies }}" == "true" ] && [ -f "${{ inputs.requirements-file }}" ]; then
             echo "📥 Installing dependencies into package..."
-            pip install -r ${{ inputs.requirements-file }} -t $PACKAGE_DIR --upgrade
+            pip install -r ${{ inputs.requirements-file }} -t $PACKAGE_DIR
           fi
           
           # Copy source files
