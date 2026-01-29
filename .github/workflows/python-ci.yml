@@ -1,0 +1,197 @@
+name: Python CI
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Python version to use"
+        required: false
+        type: string
+        default: "3.12"
+      working-directory:
+        description: "Working directory for the Python project"
+        required: false
+        type: string
+        default: "."
+      requirements-file:
+        description: "Path to requirements file"
+        required: false
+        type: string
+        default: "requirements.txt"
+      install-dependencies:
+        description: "Whether to install dependencies"
+        required: false
+        type: boolean
+        default: true
+      include-dependencies:
+        description: "Whether to include dependencies in the ZIP"
+        required: false
+        type: boolean
+        default: true
+      source-dir:
+        description: "Source directory to include in ZIP"
+        required: false
+        type: string
+        default: "."
+      zip-name:
+        description: "Name of the output ZIP file"
+        required: false
+        type: string
+        default: "lambda.zip"
+      artifact-name:
+        description: "Name of the artifact to upload"
+        required: false
+        type: string
+        default: "python-lambda"
+      artifact-retention-days:
+        description: "Number of days to retain the artifact"
+        required: false
+        type: number
+        default: 5
+      run-tests:
+        description: "Whether to run tests"
+        required: false
+        type: boolean
+        default: false
+      test-command:
+        description: "Command to run tests"
+        required: false
+        type: string
+        default: "pytest"
+      run-linting:
+        description: "Whether to run linting"
+        required: false
+        type: boolean
+        default: false
+      lint-command:
+        description: "Command to run linting"
+        required: false
+        type: string
+        default: "flake8 ."
+      exclude-patterns:
+        description: "Patterns to exclude from ZIP (comma-separated)"
+        required: false
+        type: string
+        default: "__pycache__,*.pyc,*.pyo,.git,.pytest_cache,tests,test_*"
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded artifact"
+        value: ${{ jobs.build.outputs.artifact-name }}
+      zip-name:
+        description: "Name of the ZIP file"
+        value: ${{ jobs.build.outputs.zip-name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ inputs.artifact-name }}
+      zip-name: ${{ inputs.zip-name }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: 'pip'
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.requirements-file }}
+
+      - name: Install Dependencies
+        if: ${{ inputs.install-dependencies }}
+        run: |
+          echo "📦 Installing dependencies..."
+          python -m pip install --upgrade pip
+          if [ -f "${{ inputs.requirements-file }}" ]; then
+            pip install -r ${{ inputs.requirements-file }}
+          else
+            echo "⚠️ Requirements file not found: ${{ inputs.requirements-file }}"
+          fi
+
+      - name: Run Linting
+        if: ${{ inputs.run-linting }}
+        run: |
+          echo "🔍 Running linting..."
+          pip install flake8
+          ${{ inputs.lint-command }}
+
+      - name: Run Tests
+        if: ${{ inputs.run-tests }}
+        run: |
+          echo "🧪 Running tests..."
+          pip install pytest
+          ${{ inputs.test-command }}
+
+      - name: Create ZIP Package
+        run: |
+          echo "📦 Creating ZIP package..."
+          
+          # Create a temporary directory for the package
+          PACKAGE_DIR=$(mktemp -d)
+          echo "📁 Package directory: $PACKAGE_DIR"
+          
+          # Install dependencies into package directory if needed
+          if [ "${{ inputs.include-dependencies }}" == "true" ] && [ -f "${{ inputs.requirements-file }}" ]; then
+            echo "📥 Installing dependencies into package..."
+            pip install -r ${{ inputs.requirements-file }} -t $PACKAGE_DIR --upgrade
+          fi
+          
+          # Copy source files
+          echo "📋 Copying source files from: ${{ inputs.source-dir }}"
+          
+          # Build exclude patterns for rsync
+          EXCLUDE_PATTERNS="${{ inputs.exclude-patterns }}"
+          EXCLUDE_ARGS=""
+          IFS=',' read -ra PATTERNS <<< "$EXCLUDE_PATTERNS"
+          for pattern in "${PATTERNS[@]}"; do
+            EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=$pattern"
+          done
+          
+          # Copy source files excluding unwanted patterns
+          rsync -av $EXCLUDE_ARGS ${{ inputs.source-dir }}/ $PACKAGE_DIR/
+          
+          # Remove unnecessary files from dependencies
+          find $PACKAGE_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find $PACKAGE_DIR -type f -name "*.pyc" -delete 2>/dev/null || true
+          find $PACKAGE_DIR -type f -name "*.pyo" -delete 2>/dev/null || true
+          find $PACKAGE_DIR -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true
+          find $PACKAGE_DIR -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+          
+          # Create ZIP file
+          echo "🗜️ Creating ZIP file: ${{ inputs.zip-name }}"
+          cd $PACKAGE_DIR
+          zip -r ${{ github.workspace }}/${{ inputs.working-directory }}/${{ inputs.zip-name }} . -x "*.git*"
+          
+          # Show ZIP info
+          cd ${{ github.workspace }}/${{ inputs.working-directory }}
+          echo "✅ ZIP file created successfully"
+          ls -lh ${{ inputs.zip-name }}
+          echo "📊 ZIP contents count: $(unzip -l ${{ inputs.zip-name }} | tail -1)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.zip-name }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Build Summary
+        run: |
+          echo "## 🐍 Python CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Python Version** | ${{ inputs.python-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **ZIP File** | ${{ inputs.zip-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifact Name** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Include Dependencies** | ${{ inputs.include-dependencies }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests Executed** | ${{ inputs.run-tests }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Linting Executed** | ${{ inputs.run-linting }} |" >> $GITHUB_STEP_SUMMARY
+          ZIP_SIZE=$(ls -lh ${{ inputs.zip-name }} | awk '{print $5}')
+          echo "| **ZIP Size** | $ZIP_SIZE |" >> $GITHUB_STEP_SUMMARY
