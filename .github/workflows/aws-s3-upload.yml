@@ -92,41 +92,40 @@ jobs:
           echo 🚀 Uploading to S3...
           
           # Build S3 destination URI
-          S3_BUCKET=${{ vars.AWS_S3_BUCKET }}
-          S3_PREFIX=${{ inputs.s3-prefix }}
+          S3_BUCKET="${{ vars.AWS_S3_BUCKET }}"
+          S3_PREFIX="${{ inputs.s3-prefix }}"
           
-          if [ -n $S3_PREFIX ]; then
-            S3_URI=s3://${S3_BUCKET}/${S3_PREFIX}
+          if [ -n "$S3_PREFIX" ]; then
+            S3_URI="s3://${S3_BUCKET}/${S3_PREFIX}"
           else
-            S3_URI=s3://${S3_BUCKET}
+            S3_URI="s3://${S3_BUCKET}"
           fi
           
-          echo s3-uri=${S3_URI} >> $GITHUB_OUTPUT
-          echo 📍 Destination: $S3_URI
+          echo "s3-uri=${S3_URI}" >> $GITHUB_OUTPUT
+          echo "📍 Destination: $S3_URI"
           
           # Count files before upload
           FILE_COUNT=$(find ${{ inputs.artifact-path }} -type f | wc -l)
-          echo files-uploaded=${FILE_COUNT} >> $GITHUB_OUTPUT
+          echo "files-uploaded=${FILE_COUNT}" >> $GITHUB_OUTPUT
           
           # Execute upload using sync
-          echo 📤 Uploading files...
-          aws s3 sync ${{ inputs.artifact-path }} $S3_URI
+          echo "📤 Uploading files..."
+          aws s3 sync "${{ inputs.artifact-path }}" "$S3_URI" 
           
-          echo ✅ Upload completed successfully
+          echo "✅ Upload completed successfully"
 
       - name: Verify Upload
         run: |
-          echo 🔍 Verifying uploaded files...
+          echo "🔍 Verifying uploaded files..."
           
-          S3_URI=${{ steps.upload.outputs.s3-uri }}
+          S3_URI="${{ steps.upload.outputs.s3-uri }}"
           
-          echo 📁 Files in $S3_URI:
+          echo "📁 Files in $S3_URI:"
           aws s3 ls $S3_URI --recursive --human-readable | head -20
           
           UPLOADED_COUNT=$(aws s3 ls $S3_URI --recursive | wc -l)
           echo 
-          echo 📊 Total files in S3: $UPLOADED_COUNT
-
+          echo "📊 Total files in S3: $UPLOADED_COUNT"
       - name: Build Summary
         run: |
           echo "## 📦 S3 Upload Summary" >> $GITHUB_STEP_SUMMARY
