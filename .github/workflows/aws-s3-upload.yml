@@ -25,36 +25,6 @@ on:
         description: The run ID of the workflow that generated the artifact
         required: false
         type: string
-      upload-mode:
-        description: Upload mode sync or cp
-        required: false
-        type: string
-        default: sync
-      delete-removed:
-        description: Delete files in S3 that don't exist locally (only for sync mode)
-        required: false
-        type: boolean
-        default: false
-      include-pattern:
-        description: Pattern of files to include (e.g. '*.zip')
-        required: false
-        type: string
-      exclude-pattern:
-        description: Pattern of files to exclude (e.g. '*.log')
-        required: false
-        type: string
-      acl:
-        description: Access control list for uploaded files (e.g. private, public-read)
-        required: false
-        type: string
-      cache-control:
-        description: Cache-Control header for uploaded files
-        required: false
-        type: string
-      content-type:
-        description: Content-Type header (auto-detected if not specified)
-        required: false
-        type: string
     secrets:
       aws-access-key-id:
         description: AWS Access Key ID
@@ -134,54 +104,13 @@ jobs:
           echo s3-uri=${S3_URI} >> $GITHUB_OUTPUT
           echo 📍 Destination: $S3_URI
           
-          # Build AWS CLI options
-          AWS_OPTS=
-          
-          # ACL
-          if [ -n ${{ inputs.acl }} ]; then
-            AWS_OPTS=$AWS_OPTS --acl ${{ inputs.acl }}
-          fi
-          
-          # Cache-Control
-          if [ -n ${{ inputs.cache-control }} ]; then
-            AWS_OPTS=$AWS_OPTS --cache-control '${{ inputs.cache-control }}'
-          fi
-          
-          # Content-Type
-          if [ -n ${{ inputs.content-type }} ]; then
-            AWS_OPTS=$AWS_OPTS --content-type '${{ inputs.content-type }}'
-          fi
-          
-          # Include pattern
-          if [ -n ${{ inputs.include-pattern }} ]; then
-            AWS_OPTS=$AWS_OPTS --include '${{ inputs.include-pattern }}'
-          fi
-          
-          # Exclude pattern
-          if [ -n ${{ inputs.exclude-pattern }} ]; then
-            AWS_OPTS=$AWS_OPTS --exclude '${{ inputs.exclude-pattern }}'
-          fi
-          
           # Count files before upload
           FILE_COUNT=$(find ${{ inputs.artifact-path }} -type f | wc -l)
           echo files-uploaded=${FILE_COUNT} >> $GITHUB_OUTPUT
           
-          # Execute upload based on mode
-          if [ ${{ inputs.upload-mode }} == sync ]; then
-            echo 📤 Using sync mode...
-            
-            DELETE_OPT=
-            if [ ${{ inputs.delete-removed }} == true ]; then
-              DELETE_OPT=--delete
-              echo ⚠️  Delete mode enabled - files not in source will be removed from S3
-            fi
-            
-            aws s3 sync ${{ inputs.artifact-path }} $S3_URI $AWS_OPTS $DELETE_OPT
-            
-          else
-            echo 📤 Using cp mode...
-            aws s3 cp ${{ inputs.artifact-path }} $S3_URI --recursive $AWS_OPTS
-          fi
+          # Execute upload using sync
+          echo 📤 Uploading files...
+          aws s3 sync ${{ inputs.artifact-path }} $S3_URI
           
           echo ✅ Upload completed successfully
 
@@ -207,7 +136,6 @@ jobs:
           echo | **Environment** | ${{ inputs.environment }} | >> $GITHUB_STEP_SUMMARY
           echo | **S3 Bucket** | ${{ inputs.s3-bucket }} | >> $GITHUB_STEP_SUMMARY
           echo | **S3 URI** | ${{ steps.upload.outputs.s3-uri }} | >> $GITHUB_STEP_SUMMARY
-          echo | **Upload Mode** | ${{ inputs.upload-mode }} | >> $GITHUB_STEP_SUMMARY
           echo | **Files Uploaded** | ${{ steps.upload.outputs.files-uploaded }} | >> $GITHUB_STEP_SUMMARY
           echo | **Artifact** | ${{ inputs.artifact-name }} | >> $GITHUB_STEP_SUMMARY
           echo  >> $GITHUB_STEP_SUMMARY
