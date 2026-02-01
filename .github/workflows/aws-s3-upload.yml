@@ -78,11 +78,6 @@ on:
         description: Content-Type header (auto-detected if not specified)
         required: false
         type: string
-      storage-class:
-        description: S3 storage class (STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, etc.)
-        required: false
-        type: string
-        default: STANDARD
     secrets:
       AWS_ACCESS_KEY_ID:
         description: AWS Access Key ID
@@ -165,11 +160,6 @@ jobs:
           # Build AWS CLI options
           AWS_OPTS=
           
-          # Storage class
-          if [ -n ${{ inputs.storage-class }} ]; then
-            AWS_OPTS=$AWS_OPTS --storage-class ${{ inputs.storage-class }}
-          fi
-          
           # ACL
           if [ -n ${{ inputs.acl }} ]; then
             AWS_OPTS=$AWS_OPTS --acl ${{ inputs.acl }}
@@ -242,7 +232,6 @@ jobs:
           echo | **S3 URI** | ${{ steps.upload.outputs.s3-uri }} | >> $GITHUB_STEP_SUMMARY
           echo | **Upload Mode** | ${{ inputs.upload-mode }} | >> $GITHUB_STEP_SUMMARY
           echo | **Files Uploaded** | ${{ steps.upload.outputs.files-uploaded }} | >> $GITHUB_STEP_SUMMARY
-          echo | **Storage Class** | ${{ inputs.storage-class }} | >> $GITHUB_STEP_SUMMARY
           echo | **Artifact** | ${{ inputs.artifact-name }} | >> $GITHUB_STEP_SUMMARY
           echo  >> $GITHUB_STEP_SUMMARY
           echo ✅ Upload completed successfully! >> $GITHUB_STEP_SUMMARY
