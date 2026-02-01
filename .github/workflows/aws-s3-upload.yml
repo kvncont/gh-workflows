@@ -1,0 +1,248 @@
+name: AWS S3 Upload
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment (e.g. PROD, STG, QA, DEV)
+        required: false
+        type: string
+        default: DEV
+      aws-region:
+        description: AWS Region
+        required: false
+        type: string
+        default: us-east-1
+      role-to-assume:
+        description: AWS IAM Role ARN to assume
+        required: false
+        type: string
+      role-session-name:
+        description: Session name for the assumed role
+        required: false
+        type: string
+        default: github-actions-s3-upload
+      role-duration-seconds:
+        description: Duration in seconds for the assumed role session (default 15 minutes)
+        required: false
+        type: number
+        default: 540
+      s3-bucket:
+        description: S3 bucket name
+        required: true
+        type: string
+      s3-prefix:
+        description: S3 key prefix (folder path)
+        required: false
+        type: string
+      artifact-name:
+        description: Name of the artifact to download
+        required: true
+        type: string
+      artifact-path:
+        description: Path where the artifact will be downloaded
+        required: false
+        type: string
+        default: ./artifact
+      run-id:
+        description: The run ID of the workflow that generated the artifact
+        required: false
+        type: string
+      upload-mode:
+        description: Upload mode sync or cp
+        required: false
+        type: string
+        default: sync
+      delete-removed:
+        description: Delete files in S3 that don't exist locally (only for sync mode)
+        required: false
+        type: boolean
+        default: false
+      include-pattern:
+        description: Pattern of files to include (e.g. '*.zip')
+        required: false
+        type: string
+      exclude-pattern:
+        description: Pattern of files to exclude (e.g. '*.log')
+        required: false
+        type: string
+      acl:
+        description: Access control list for uploaded files (e.g. private, public-read)
+        required: false
+        type: string
+      cache-control:
+        description: Cache-Control header for uploaded files
+        required: false
+        type: string
+      content-type:
+        description: Content-Type header (auto-detected if not specified)
+        required: false
+        type: string
+      storage-class:
+        description: S3 storage class (STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, etc.)
+        required: false
+        type: string
+        default: STANDARD
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        description: AWS Access Key ID
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        description: AWS Secret Access Key
+        required: false
+    outputs:
+      s3-uri:
+        description: The S3 URI where files were uploaded
+        value: ${{ jobs.upload.outputs.s3-uri }}
+      files-uploaded:
+        description: Number of files uploaded
+        value: ${{ jobs.upload.outputs.files-uploaded }}
+
+jobs:
+  s3-upload:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      s3-uri: ${{ steps.upload.outputs.s3-uri }}
+      files-uploaded: ${{ steps.upload.outputs.files-uploaded }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifact (from current workflow)
+        if: ${{ inputs.run-id == '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Download Artifact (from specific run)
+        if: ${{ inputs.run-id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run-id }}
+
+      - name: List Downloaded Files
+        run: |
+          echo 📦 Downloaded artifact contents:
+          ls -laR ${{ inputs.artifact-path }}
+          echo 
+          FILE_COUNT=$(find ${{ inputs.artifact-path }} -type f | wc -l)
+          echo 📊 Total files: $FILE_COUNT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.role-to-assume }}
+          role-session-name: ${{ inputs.role-session-name }}
+          role-duration-seconds: ${{ inputs.role-duration-seconds }}
+
+      - name: Upload to S3
+        id: upload
+        run: |
+          echo 🚀 Uploading to S3...
+          
+          # Build S3 destination URI
+          S3_BUCKET=${{ inputs.s3-bucket }}
+          S3_PREFIX=${{ inputs.s3-prefix }}
+          
+          if [ -n $S3_PREFIX ]; then
+            S3_URI=s3://${S3_BUCKET}/${S3_PREFIX}
+          else
+            S3_URI=s3://${S3_BUCKET}
+          fi
+          
+          echo s3-uri=${S3_URI} >> $GITHUB_OUTPUT
+          echo 📍 Destination: $S3_URI
+          
+          # Build AWS CLI options
+          AWS_OPTS=
+          
+          # Storage class
+          if [ -n ${{ inputs.storage-class }} ]; then
+            AWS_OPTS=$AWS_OPTS --storage-class ${{ inputs.storage-class }}
+          fi
+          
+          # ACL
+          if [ -n ${{ inputs.acl }} ]; then
+            AWS_OPTS=$AWS_OPTS --acl ${{ inputs.acl }}
+          fi
+          
+          # Cache-Control
+          if [ -n ${{ inputs.cache-control }} ]; then
+            AWS_OPTS=$AWS_OPTS --cache-control '${{ inputs.cache-control }}'
+          fi
+          
+          # Content-Type
+          if [ -n ${{ inputs.content-type }} ]; then
+            AWS_OPTS=$AWS_OPTS --content-type '${{ inputs.content-type }}'
+          fi
+          
+          # Include pattern
+          if [ -n ${{ inputs.include-pattern }} ]; then
+            AWS_OPTS=$AWS_OPTS --include '${{ inputs.include-pattern }}'
+          fi
+          
+          # Exclude pattern
+          if [ -n ${{ inputs.exclude-pattern }} ]; then
+            AWS_OPTS=$AWS_OPTS --exclude '${{ inputs.exclude-pattern }}'
+          fi
+          
+          # Count files before upload
+          FILE_COUNT=$(find ${{ inputs.artifact-path }} -type f | wc -l)
+          echo files-uploaded=${FILE_COUNT} >> $GITHUB_OUTPUT
+          
+          # Execute upload based on mode
+          if [ ${{ inputs.upload-mode }} == sync ]; then
+            echo 📤 Using sync mode...
+            
+            DELETE_OPT=
+            if [ ${{ inputs.delete-removed }} == true ]; then
+              DELETE_OPT=--delete
+              echo ⚠️  Delete mode enabled - files not in source will be removed from S3
+            fi
+            
+            aws s3 sync ${{ inputs.artifact-path }} $S3_URI $AWS_OPTS $DELETE_OPT
+            
+          else
+            echo 📤 Using cp mode...
+            aws s3 cp ${{ inputs.artifact-path }} $S3_URI --recursive $AWS_OPTS
+          fi
+          
+          echo ✅ Upload completed successfully
+
+      - name: Verify Upload
+        run: |
+          echo 🔍 Verifying uploaded files...
+          
+          S3_URI=${{ steps.upload.outputs.s3-uri }}
+          
+          echo 📁 Files in $S3_URI:
+          aws s3 ls $S3_URI --recursive --human-readable | head -20
+          
+          UPLOADED_COUNT=$(aws s3 ls $S3_URI --recursive | wc -l)
+          echo 
+          echo 📊 Total files in S3: $UPLOADED_COUNT
+
+      - name: Upload Summary
+        run: |
+          echo ## 📦 S3 Upload Summary >> $GITHUB_STEP_SUMMARY
+          echo  >> $GITHUB_STEP_SUMMARY
+          echo | Property | Value | >> $GITHUB_STEP_SUMMARY
+          echo |----------|-------| >> $GITHUB_STEP_SUMMARY
+          echo | **Environment** | ${{ inputs.environment }} | >> $GITHUB_STEP_SUMMARY
+          echo | **S3 Bucket** | ${{ inputs.s3-bucket }} | >> $GITHUB_STEP_SUMMARY
+          echo | **S3 URI** | ${{ steps.upload.outputs.s3-uri }} | >> $GITHUB_STEP_SUMMARY
+          echo | **Upload Mode** | ${{ inputs.upload-mode }} | >> $GITHUB_STEP_SUMMARY
+          echo | **Files Uploaded** | ${{ steps.upload.outputs.files-uploaded }} | >> $GITHUB_STEP_SUMMARY
+          echo | **Storage Class** | ${{ inputs.storage-class }} | >> $GITHUB_STEP_SUMMARY
+          echo | **Artifact** | ${{ inputs.artifact-name }} | >> $GITHUB_STEP_SUMMARY
+          echo  >> $GITHUB_STEP_SUMMARY
+          echo ✅ Upload completed successfully! >> $GITHUB_STEP_SUMMARY
