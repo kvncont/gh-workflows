@@ -59,20 +59,20 @@ on:
     secrets:
       aws-access-key-id:
         description: AWS Access Key ID
-        required: false
+        required: true
       aws-secret-access-key:
         description: AWS Secret Access Key
-        required: false
+        required: true
     outputs:
       lambda-version:
         description: The published Lambda version number
-        value: ${{ jobs.deploy.outputs.lambda-version }}
+        value: ${{ jobs.deploy-lambda.outputs.lambda-version }}
       function-arn:
         description: The ARN of the updated Lambda function
-        value: ${{ jobs.deploy.outputs.function-arn }}
+        value: ${{ jobs.deploy-lambda.outputs.function-arn }}
       s3-uri:
         description: The S3 URI from where artifact was downloaded (when using S3)
-        value: ${{ jobs.deploy.outputs.s3-uri }}
+        value: ${{ jobs.deploy-lambda.outputs.s3-uri }}
 
 jobs:
   deploy-lambda:
