@@ -8,29 +8,6 @@ on:
         required: false
         type: string
         default: DEV
-      aws-region:
-        description: AWS Region
-        required: false
-        type: string
-        default: us-east-1
-      role-to-assume:
-        description: AWS IAM Role ARN to assume
-        required: false
-        type: string
-      role-session-name:
-        description: Session name for the assumed role
-        required: false
-        type: string
-        default: github-actions-s3-upload
-      role-duration-seconds:
-        description: Duration in seconds for the assumed role session (default 15 minutes)
-        required: false
-        type: number
-        default: 900
-      s3-bucket:
-        description: S3 bucket name
-        required: true
-        type: string
       s3-prefix:
         description: S3 key prefix (folder path)
         required: false
@@ -134,10 +111,10 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
-          aws-region: ${{ inputs.aws-region }}
+          aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          role-session-name: ${{ inputs.role-session-name }}
-          role-duration-seconds: ${{ inputs.role-duration-seconds }}
+          role-session-name: ${{ vars.AWS_ROLE_SESSION_NAME }}
+          role-duration-seconds: ${{ vars.AWS_ROLE_DURATION_SECONDS }}
 
       - name: Upload to S3
         id: upload
