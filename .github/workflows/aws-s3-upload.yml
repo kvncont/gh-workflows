@@ -78,13 +78,13 @@ on:
         description: Content-Type header (auto-detected if not specified)
         required: false
         type: string
-    # secrets:
-    #   AWS_ACCESS_KEY_ID:
-    #     description: AWS Access Key ID
-    #     required: false
-    #   AWS_SECRET_ACCESS_KEY:
-    #     description: AWS Secret Access Key
-    #     required: false
+    secrets:
+      aws-access-key-id:
+        description: AWS Access Key ID
+        required: false
+      aws-secret-access-key:
+        description: AWS Secret Access Key
+        required: false
     outputs:
       s3-uri:
         description: The S3 URI where files were uploaded
@@ -132,8 +132,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
           aws-region: ${{ inputs.aws-region }}
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           role-session-name: ${{ inputs.role-session-name }}
