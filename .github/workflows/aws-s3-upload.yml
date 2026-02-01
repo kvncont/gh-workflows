@@ -127,16 +127,16 @@ jobs:
           echo 
           echo 📊 Total files in S3: $UPLOADED_COUNT
 
-      - name: Upload Summary
+      - name: Build Summary
         run: |
-          echo ## 📦 S3 Upload Summary >> $GITHUB_STEP_SUMMARY
-          echo  >> $GITHUB_STEP_SUMMARY
-          echo | Property | Value | >> $GITHUB_STEP_SUMMARY
-          echo |----------|-------| >> $GITHUB_STEP_SUMMARY
-          echo | **Environment** | ${{ inputs.environment }} | >> $GITHUB_STEP_SUMMARY
-          echo | **S3 Bucket** | ${{ inputs.s3-bucket }} | >> $GITHUB_STEP_SUMMARY
-          echo | **S3 URI** | ${{ steps.upload.outputs.s3-uri }} | >> $GITHUB_STEP_SUMMARY
-          echo | **Files Uploaded** | ${{ steps.upload.outputs.files-uploaded }} | >> $GITHUB_STEP_SUMMARY
-          echo | **Artifact** | ${{ inputs.artifact-name }} | >> $GITHUB_STEP_SUMMARY
-          echo  >> $GITHUB_STEP_SUMMARY
-          echo ✅ Upload completed successfully! >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 S3 Upload Summary" >> $GITHUB_STEP_SUMMARY
+          echo  "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 Bucket** | ${{ vars.AWS_S3_BUCKET }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 URI** | ${{ steps.upload.outputs.s3-uri }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Files Uploaded** | ${{ steps.upload.outputs.files-uploaded }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifact** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo  "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Upload completed successfully!" >> $GITHUB_STEP_SUMMARY
