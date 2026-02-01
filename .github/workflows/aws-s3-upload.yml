@@ -1,0 +1,142 @@
+name: AWS S3 Upload
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment (e.g. PROD, STG, QA, DEV)
+        required: false
+        type: string
+        default: DEV
+      s3-prefix:
+        description: S3 key prefix (folder path)
+        required: false
+        type: string
+      artifact-name:
+        description: Name of the artifact to download
+        required: true
+        type: string
+      artifact-path:
+        description: Path where the artifact will be downloaded
+        required: false
+        type: string
+        default: ./artifact
+      run-id:
+        description: The run ID of the workflow that generated the artifact
+        required: false
+        type: string
+    secrets:
+      aws-access-key-id:
+        description: AWS Access Key ID
+        required: false
+      aws-secret-access-key:
+        description: AWS Secret Access Key
+        required: false
+    outputs:
+      s3-uri:
+        description: The S3 URI where files were uploaded
+        value: ${{ jobs.upload.outputs.s3-uri }}
+      files-uploaded:
+        description: Number of files uploaded
+        value: ${{ jobs.upload.outputs.files-uploaded }}
+
+jobs:
+  s3-upload:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      s3-uri: ${{ steps.upload.outputs.s3-uri }}
+      files-uploaded: ${{ steps.upload.outputs.files-uploaded }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifact (from current workflow)
+        if: ${{ inputs.run-id == '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Download Artifact (from specific run)
+        if: ${{ inputs.run-id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run-id }}
+
+      - name: List Downloaded Files
+        run: |
+          echo 📦 Downloaded artifact contents:
+          ls -laR ${{ inputs.artifact-path }}
+          echo 
+          FILE_COUNT=$(find ${{ inputs.artifact-path }} -type f | wc -l)
+          echo 📊 Total files: $FILE_COUNT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          role-session-name: ${{ vars.AWS_ROLE_SESSION_NAME }}
+          role-duration-seconds: ${{ vars.AWS_ROLE_DURATION_SECONDS }}
+
+      - name: Upload to S3
+        id: upload
+        run: |
+          echo 🚀 Uploading to S3...
+          
+          # Build S3 destination URI
+          S3_BUCKET="${{ vars.AWS_S3_BUCKET }}"
+          S3_PREFIX="${{ inputs.s3-prefix }}"
+          
+          if [ -n "$S3_PREFIX" ]; then
+            S3_URI="s3://${S3_BUCKET}/${S3_PREFIX}"
+          else
+            S3_URI="s3://${S3_BUCKET}"
+          fi
+          
+          echo "s3-uri=${S3_URI}" >> $GITHUB_OUTPUT
+          echo "📍 Destination: $S3_URI"
+          
+          # Count files before upload
+          FILE_COUNT=$(find ${{ inputs.artifact-path }} -type f | wc -l)
+          echo "files-uploaded=${FILE_COUNT}" >> $GITHUB_OUTPUT
+          
+          # Execute upload using sync
+          echo "📤 Uploading files..."
+          aws s3 sync "${{ inputs.artifact-path }}" "$S3_URI" 
+          
+          echo "✅ Upload completed successfully"
+
+      - name: Verify Upload
+        run: |
+          echo "🔍 Verifying uploaded files..."
+          
+          S3_URI="${{ steps.upload.outputs.s3-uri }}"
+          
+          echo "📁 Files in $S3_URI:"
+          aws s3 ls $S3_URI --recursive --human-readable | head -20
+          
+          UPLOADED_COUNT=$(aws s3 ls $S3_URI --recursive | wc -l)
+          echo 
+          echo "📊 Total files in S3: $UPLOADED_COUNT"
+      
+      - name: Summary
+        run: |
+          echo "## 📦 S3 Upload Summary" >> $GITHUB_STEP_SUMMARY
+          echo  "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 Bucket** | ${{ vars.AWS_S3_BUCKET }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 URI** | ${{ steps.upload.outputs.s3-uri }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Files Uploaded** | ${{ steps.upload.outputs.files-uploaded }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifact** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo  "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Upload completed successfully!" >> $GITHUB_STEP_SUMMARY
