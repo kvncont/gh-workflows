@@ -1,0 +1,219 @@
+name: AWS Lambda CD
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment (e.g. PROD, STG, QA, DEV)
+        required: false
+        type: string
+        default: DEV
+      aws-region:
+        description: AWS Region where the Lambda is deployed
+        required: false
+        type: string
+        default: us-east-1
+      aws-role-to-assume:
+        description: AWS IAM Role ARN to assume for deployment
+        required: false
+        type: string
+      aws-role-session-name:
+        description: Session name for the assumed role
+        required: false
+        type: string
+        default: github-actions-lambda-deploy
+      aws-role-duration-seconds:
+        description: Duration in seconds for the assumed role session (default 15 minutes)
+        required: false
+        type: number
+        default: 540
+      
+      aws-lambda-name:
+        description: Name of the Lambda function to update
+        required: true
+        type: string
+      artifact-name:
+        description: Name of the artifact to download
+        required: true
+        type: string
+      artifact-path:
+        description: Path where the artifact will be downloaded
+        required: false
+        type: string
+        default: ./artifact
+      zip-file:
+        description: Name of the ZIP file containing the Lambda code
+        required: true
+        type: string
+      env-file:
+        description: Path to the environment variables file (JSON format)
+        required: false
+        type: string
+      publish-version:
+        description: Whether to publish a new version of the Lambda
+        required: false
+        type: boolean
+        default: true
+      version-description:
+        description: Description for the new Lambda version
+        required: false
+        type: string
+        default: Deployed via GitHub Actions
+      run-id:
+        description: The run ID of the workflow that generated the artifact
+        required: false
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        description: AWS Access Key ID
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        description: AWS Secret Access Key
+        required: false
+    outputs:
+      lambda-version:
+        description: The published Lambda version number
+        value: ${{ jobs.deploy.outputs.lambda-version }}
+      function-arn:
+        description: The ARN of the updated Lambda function
+        value: ${{ jobs.deploy.outputs.function-arn }}
+
+jobs:
+  deploy:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      lambda-version: ${{ steps.publish-version.outputs.version }}
+      function-arn: ${{ steps.update-code.outputs.function-arn }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifact (from current workflow)
+        if: ${{ inputs.run-id == '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Download Artifact (from specific run)
+        if: ${{ inputs.run-id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run-id }}
+
+      - name: List Downloaded Files
+        run: |
+          echo 📦 Downloaded artifact contents:
+          ls -la ${{ inputs.artifact-path }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          role-session-name: ${{ inputs.aws-role-session-name }}
+          role-duration-seconds: ${{ inputs.aws-role-duration-seconds }}
+
+      - name: Update Lambda Code
+        id: update-code
+        run: |
+          echo 🚀 Updating Lambda function code: ${{ inputs.lambda-name }}
+          
+          ZIP_PATH=${{ inputs.artifact-path }}/${{ inputs.zip-file }}
+          
+          if [ ! -f $ZIP_PATH ]; then
+            echo ❌ Error: ZIP file not found at $ZIP_PATH
+            exit 1
+          fi
+          
+          RESULT=$(aws lambda update-function-code \
+            --function-name ${{ inputs.lambda-name }} \
+            --zip-file fileb://$ZIP_PATH \
+            --output json)
+          
+          FUNCTION_ARN=$(echo $RESULT | jq -r '.FunctionArn')
+          echo function-arn=$FUNCTION_ARN >> $GITHUB_OUTPUT
+          echo ✅ Lambda code updated successfully
+          echo 📍 Function ARN: $FUNCTION_ARN
+
+      - name: Wait for Lambda Update
+        run: |
+          echo ⏳ Waiting for Lambda function to be ready...
+          aws lambda wait function-updated \
+            --function-name ${{ inputs.lambda-name }}
+          echo ✅ Lambda function is ready
+
+      - name: Update Environment Variables
+        if: ${{ inputs.env-file != '' }}
+        run: |
+          echo 🔧 Updating environment variables from: ${{ inputs.env-file }}
+          
+          if [ ! -f ${{ inputs.env-file }} ]; then
+            echo ❌ Error: Environment file not found at ${{ inputs.env-file }}
+            exit 1
+          fi
+          
+          # Read environment variables from JSON file
+          ENV_VARS=$(cat ${{ inputs.env-file }})
+          
+          # Validate JSON format
+          if ! echo $ENV_VARS | jq . > /dev/null 2>&1; then
+            echo ❌ Error: Invalid JSON format in environment file
+            exit 1
+          fi
+          
+          # Update Lambda environment variables
+          aws lambda update-function-configuration \
+            --function-name ${{ inputs.lambda-name }} \
+            --environment {\Variables\: $ENV_VARS}
+          
+          echo ✅ Environment variables updated successfully
+
+      - name: Wait for Configuration Update
+        if: ${{ inputs.env-file != '' }}
+        run: |
+          echo ⏳ Waiting for Lambda configuration to be ready...
+          aws lambda wait function-updated \
+            --function-name ${{ inputs.lambda-name }}
+          echo ✅ Lambda configuration is ready
+
+      - name: Publish Lambda Version
+        id: publish-version
+        if: ${{ inputs.publish-version }}
+        run: |
+          echo 📌 Publishing new Lambda version...
+          
+          RESULT=$(aws lambda publish-version \
+            --function-name ${{ inputs.lambda-name }} \
+            --description ${{ inputs.version-description }} \
+            --output json)
+          
+          VERSION=$(echo $RESULT | jq -r '.Version')
+          VERSION_ARN=$(echo $RESULT | jq -r '.FunctionArn')
+          
+          echo version=$VERSION >> $GITHUB_OUTPUT
+          echo ✅ Published Lambda version: $VERSION
+          echo 📍 Version ARN: $VERSION_ARN
+
+      - name: Deployment Summary
+        run: |
+          echo ## 🎉 Lambda Deployment Summary >> $GITHUB_STEP_SUMMARY
+          echo  >> $GITHUB_STEP_SUMMARY
+          echo | Property | Value | >> $GITHUB_STEP_SUMMARY
+          echo |----------|-------| >> $GITHUB_STEP_SUMMARY
+          echo | **Lambda Name** | ${{ inputs.lambda-name }} | >> $GITHUB_STEP_SUMMARY
+          echo | **Region** | ${{ inputs.aws-region }} | >> $GITHUB_STEP_SUMMARY
+          echo | **Artifact** | ${{ inputs.artifact-name }} | >> $GITHUB_STEP_SUMMARY
+          if [ ${{ inputs.publish-version }} == true ]; then
+            echo | **Version** | ${{ steps.publish-version.outputs.version }} | >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ ${{ inputs.env-file }} !=  ]; then
+            echo | **Env File** | ${{ inputs.env-file }} | >> $GITHUB_STEP_SUMMARY
+          fi
