@@ -75,7 +75,7 @@ on:
         value: ${{ jobs.deploy.outputs.s3-uri }}
 
 jobs:
-  deploy:
+  deploy-lambda:
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     outputs:
