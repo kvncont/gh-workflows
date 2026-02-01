@@ -126,7 +126,8 @@ jobs:
           UPLOADED_COUNT=$(aws s3 ls $S3_URI --recursive | wc -l)
           echo 
           echo "📊 Total files in S3: $UPLOADED_COUNT"
-      - name: Build Summary
+      
+      - name: Summary
         run: |
           echo "## 📦 S3 Upload Summary" >> $GITHUB_STEP_SUMMARY
           echo  "" >> $GITHUB_STEP_SUMMARY

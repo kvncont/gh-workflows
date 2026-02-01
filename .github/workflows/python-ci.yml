@@ -181,7 +181,7 @@ jobs:
           path: ${{ inputs.working-directory }}/${{ inputs.zip-name }}
           retention-days: ${{ inputs.artifact-retention-days }}
 
-      - name: Build Summary
+      - name: Summary
         run: |
           echo "## 🐍 Python CI Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

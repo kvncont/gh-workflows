@@ -202,7 +202,7 @@ jobs:
           echo ✅ Published Lambda version: $VERSION
           echo 📍 Version ARN: $VERSION_ARN
 
-      - name: Deployment Summary
+      - name: Summary
         run: |
           echo ## 🎉 Lambda Deployment Summary >> $GITHUB_STEP_SUMMARY
           echo  >> $GITHUB_STEP_SUMMARY

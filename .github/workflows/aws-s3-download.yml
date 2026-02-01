@@ -1,0 +1,148 @@
+name: AWS S3 Download
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment (e.g. PROD, STG, QA, DEV)
+        required: false
+        type: string
+        default: DEV
+      s3-prefix:
+        description: S3 key prefix (folder path) to download from
+        required: false
+        type: string
+      s3-file:
+        description: Specific file to download from S3 (e.g. lambda.zip)
+        required: false
+        type: string
+      download-path:
+        description: Local path where files will be downloaded
+        required: false
+        type: string
+        default: ./download
+      artifact-name:
+        description: Name for the artifact to upload after download
+        required: false
+        type: string
+      artifact-retention-days:
+        description: Number of days to retain the artifact
+        required: false
+        type: number
+        default: 5
+    secrets:
+      aws-access-key-id:
+        description: AWS Access Key ID
+        required: false
+      aws-secret-access-key:
+        description: AWS Secret Access Key
+        required: false
+    outputs:
+      s3-uri:
+        description: The S3 URI from where files were downloaded
+        value: ${{ jobs.s3-download.outputs.s3-uri }}
+      files-downloaded:
+        description: Number of files downloaded
+        value: ${{ jobs.s3-download.outputs.files-downloaded }}
+      download-path:
+        description: Local path where files were downloaded
+        value: ${{ jobs.s3-download.outputs.download-path }}
+
+jobs:
+  s3-download:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      s3-uri: ${{ steps.download.outputs.s3-uri }}
+      files-downloaded: ${{ steps.download.outputs.files-downloaded }}
+      download-path: ${{ steps.download.outputs.download-path }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          role-session-name: ${{ vars.AWS_ROLE_SESSION_NAME }}
+          role-duration-seconds: ${{ vars.AWS_ROLE_DURATION_SECONDS }}
+
+      - name: Download from S3
+        id: download
+        run: |
+          echo 📥 Downloading from S3...
+          
+          # Build S3 source URI
+          S3_BUCKET=${{ vars.AWS_S3_BUCKET }}
+          S3_PREFIX="${{ inputs.s3-prefix }}"
+          S3_FILE="${{ inputs.s3-file }}"
+          
+          # Build the S3 URI based on inputs
+          if [ -n "$S3_FILE" ]; then
+            if [ -n "$S3_PREFIX" ]; then
+              S3_URI="s3://${S3_BUCKET}/${S3_PREFIX}/${S3_FILE}"
+            else
+              S3_URI="s3://${S3_BUCKET}/${S3_FILE}"
+            fi
+          elif [ -n "$S3_PREFIX" ]; then
+            S3_URI="s3://${S3_BUCKET}/${S3_PREFIX}"
+          else
+            S3_URI="s3://${S3_BUCKET}"
+          fi
+          
+          echo "s3-uri=${S3_URI}" >> $GITHUB_OUTPUT
+          echo "download-path=${{ inputs.download-path }}" >> $GITHUB_OUTPUT
+          echo "📍 Source: $S3_URI"
+          
+          # Create download directory
+          mkdir -p ${{ inputs.download-path }}
+          
+          # Download from S3
+          if [ -n "$S3_FILE" ]; then
+            echo "📄 Downloading single file: $S3_FILE"
+            aws s3 cp "$S3_URI" "${{ inputs.download-path }}/"
+          else
+            echo "📁 Downloading directory contents..."
+            aws s3 sync "$S3_URI" "${{ inputs.download-path }}"
+          fi
+          
+          # Count downloaded files
+          FILE_COUNT=$(find ${{ inputs.download-path }} -type f | wc -l)
+          echo "files-downloaded=${FILE_COUNT}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Download completed successfully"
+
+      - name: List Downloaded Files
+        run: |
+          echo "📦 Downloaded contents:"
+          ls -laR ${{ inputs.download-path }}
+          echo ""
+          echo "📊 Total files: ${{ steps.download.outputs.files-downloaded }}"
+
+      - name: Upload as Artifact
+        if: ${{ inputs.artifact-name != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.download-path }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Summary
+        run: |
+          echo "## 📥 S3 Download Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 URI** | ${{ steps.download.outputs.s3-uri }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Download Path** | ${{ inputs.download-path }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Files Downloaded** | ${{ steps.download.outputs.files-downloaded }} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.artifact-name }}" ]; then
+            echo "| **Artifact Name** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Download completed successfully!" >> $GITHUB_STEP_SUMMARY
