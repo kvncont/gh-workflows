@@ -73,23 +73,6 @@ on:
         required: false
         type: string
         default: "__pycache__,*.pyc,*.pyo,.git,.pytest_cache,tests,test_*"
-      upload-artifact:
-        description: Whether to upload the ZIP as an artifact
-        required: false
-        type: boolean
-        default: false
-      environments:
-        description: List of environments for which to run the workflow. Comma-separated .e.g, DEV,QA,PROD
-        required: false
-        type: string
-        default: '["DEV","QA","STG","PROD"]'
-    secrets:
-      aws-access-key-id:
-        description: AWS Access Key ID
-        required: false
-      aws-secret-access-key:
-        description: AWS Secret Access Key
-        required: false
     outputs:
       artifact-name:
         description: Name of the uploaded artifact
@@ -212,18 +195,3 @@ jobs:
           echo "| **Linting Executed** | ${{ inputs.run-linting }} |" >> $GITHUB_STEP_SUMMARY
           ZIP_SIZE=$(ls -lh ${{ inputs.zip-name }} | awk '{print $5}')
           echo "| **ZIP Size** | $ZIP_SIZE |" >> $GITHUB_STEP_SUMMARY
-
-  upload-to-aws-s3:
-    if: ${{ inputs.upload-artifact == true }}
-    needs: python-ci
-    strategy:
-      matrix:
-        environment: ${{ fromJson(inputs.environments) }}
-    uses: ./.github/workflows/aws-s3-upload.yml
-    with:
-      environment: ${{ matrix.environment }}
-      s3-prefix: releases/${{ matrix.environment }}/${{ github.event.repository.name }}/${{ github.event.release.tag_name }}
-      artifact-name: lambda-${{ github.event.release.tag_name }}
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
