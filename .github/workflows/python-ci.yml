@@ -208,7 +208,7 @@ jobs:
 
   upload-to-aws-s3:
     if: ${{ inputs.upload-artifact == true }}
-    needs: build
+    needs: python-ci
     strategy:
       matrix:
         environment: ${{ inputs.environments }}
