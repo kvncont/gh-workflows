@@ -4,81 +4,91 @@ on:
   workflow_call:
     inputs:
       python-version:
-        description: "Python version to use"
+        description: Python version to use
         required: false
         type: string
-        default: "3.12"
+        default: 3.14
       working-directory:
-        description: "Working directory for the Python project"
+        description: Working directory for the Python project
         required: false
         type: string
         default: "."
       requirements-file:
-        description: "Path to requirements file"
+        description: Path to requirements file
         required: false
         type: string
-        default: "requirements.txt"
+        default: requirements.txt
       install-dependencies:
-        description: "Whether to install dependencies"
+        description: Whether to install dependencies
         required: false
         type: boolean
         default: true
       include-dependencies:
-        description: "Whether to include dependencies in the ZIP"
+        description: Whether to include dependencies in the ZIP
         required: false
         type: boolean
         default: true
       source-dir:
-        description: "Source directory to include in ZIP"
+        description: Source directory to include in ZIP
         required: false
         type: string
-        default: "."
+        default: .
       zip-name:
-        description: "Name of the output ZIP file"
+        description: Name of the output ZIP file
         required: false
         type: string
-        default: "lambda.zip"
+        default: lambda.zip
       artifact-name:
-        description: "Name of the artifact to upload"
+        description: Name of the artifact to upload
         required: false
         type: string
-        default: "python-lambda"
+        default: python-lambda
       artifact-retention-days:
-        description: "Number of days to retain the artifact"
+        description: Number of days to retain the artifact
         required: false
         type: number
         default: 5
       run-tests:
-        description: "Whether to run tests"
+        description: Whether to run tests
         required: false
         type: boolean
         default: false
       test-command:
-        description: "Command to run tests"
+        description: Command to run tests
         required: false
         type: string
-        default: "pytest"
+        default: pytest
       run-linting:
-        description: "Whether to run linting"
+        description: Whether to run linting
         required: false
         type: boolean
         default: false
       lint-command:
-        description: "Command to run linting"
+        description: Command to run linting
         required: false
         type: string
-        default: "flake8 ."
+        default: flake8 .
       exclude-patterns:
-        description: "Patterns to exclude from ZIP (comma-separated)"
+        description: Patterns to exclude from ZIP (comma-separated)
         required: false
         type: string
         default: "__pycache__,*.pyc,*.pyo,.git,.pytest_cache,tests,test_*"
+      upload-artifact:
+        description: Whether to upload the ZIP as an artifact
+        required: false
+        type: boolean
+        default: false
+      environments:
+        description: List of environments for which to run the workflow. Comma-separated .e.g, DEV,QA,PROD
+        required: false
+        type: string
+        default: '["DEV","QA","STG","PROD"]'
     outputs:
       artifact-name:
-        description: "Name of the uploaded artifact"
+        description: Name of the uploaded artifact
         value: ${{ jobs.build.outputs.artifact-name }}
       zip-name:
-        description: "Name of the ZIP file"
+        description: Name of the ZIP file
         value: ${{ jobs.build.outputs.zip-name }}
 
 jobs:
@@ -100,7 +110,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-          cache: 'pip'
+          cache: pip
           cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.requirements-file }}
 
       - name: Install Dependencies
@@ -195,3 +205,18 @@ jobs:
           echo "| **Linting Executed** | ${{ inputs.run-linting }} |" >> $GITHUB_STEP_SUMMARY
           ZIP_SIZE=$(ls -lh ${{ inputs.zip-name }} | awk '{print $5}')
           echo "| **ZIP Size** | $ZIP_SIZE |" >> $GITHUB_STEP_SUMMARY
+
+  upload-to-aws-s3:
+    if: ${{ inputs.upload-artifact == true }}
+    needs: build
+    strategy:
+      matrix:
+        environment: ${{ inputs.environments }}
+    uses: ./.github/workflows/aws-s3-upload.yml
+    with:
+      environment: ${{ matrix.environment }}
+      s3-prefix: releases/${{ matrix.environment }}/${{ github.event.repository.name }}/${{ github.event.release.tag_name }}
+      artifact-name: lambda-${{ github.event.release.tag_name }}
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
