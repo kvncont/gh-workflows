@@ -8,15 +8,6 @@ on:
         required: false
         type: string
         default: DEV
-      
-      # Artifact source configuration
-      artifact-source:
-        description: "Source of the artifact: 's3' or 'github'"
-        required: false
-        type: string
-        default: github
-      
-      # GitHub Artifact inputs
       artifact-name:
         description: Name of the GitHub artifact to download (when artifact-source is 'github')
         required: false
@@ -25,14 +16,6 @@ on:
         description: The run ID of the workflow that generated the artifact
         required: false
         type: string
-      
-      # S3 Artifact inputs
-      s3-prefix:
-        description: S3 key prefix (folder path)
-        required: false
-        type: string
-      
-      # Common inputs
       artifact-path:
         description: Path where the artifact will be downloaded
         required: false
@@ -110,38 +93,6 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           role-session-name: ${{ vars.AWS_ROLE_SESSION_NAME }}
           role-duration-seconds: ${{ vars.AWS_ROLE_DURATION_SECONDS }}
-
-      # S3 Artifact Download
-      - name: Download Artifact from S3
-        id: download-s3
-        if: ${{ inputs.artifact-source == 's3' }}
-        run: |
-          echo "📥 Downloading from S3..."
-          
-          # Build S3 URI
-          S3_BUCKET="${{ vars.AWS_S3_BUCKET }}"
-          S3_PREFIX="${{ inputs.s3-prefix }}"
-          ZIP_FILE="${{ inputs.zip-file }}"
-          
-          if [ -n "$S3_PREFIX" ]; then
-            S3_URI="s3://${S3_BUCKET}/${S3_PREFIX}/${ZIP_FILE}"
-          else
-            S3_URI="s3://${S3_BUCKET}/${ZIP_FILE}"
-          fi
-          
-          echo "s3-uri=${S3_URI}" >> $GITHUB_OUTPUT
-          echo "📍 Source: $S3_URI"
-          
-          # Create download directory and download
-          mkdir -p ${{ inputs.artifact-path }}
-          aws s3 cp "$S3_URI" "${{ inputs.artifact-path }}/"
-          
-          echo "✅ Download from S3 completed"
-
-      - name: List Downloaded Files
-        run: |
-          echo "📦 Downloaded artifact contents:"
-          ls -la ${{ inputs.artifact-path }}
 
       - name: Update Lambda Code
         id: update-code
