@@ -83,6 +83,13 @@ on:
         required: false
         type: string
         default: '["DEV","QA","STG","PROD"]'
+    secrets:
+      aws-access-key-id:
+        description: AWS Access Key ID
+        required: false
+      aws-secret-access-key:
+        description: AWS Secret Access Key
+        required: false
     outputs:
       artifact-name:
         description: Name of the uploaded artifact
