@@ -211,7 +211,7 @@ jobs:
     needs: python-ci
     strategy:
       matrix:
-        environment: ${{ inputs.environments }}
+        environment: ${{ fromJson(inputs.environments) }}
     uses: ./.github/workflows/aws-s3-upload.yml
     with:
       environment: ${{ matrix.environment }}
