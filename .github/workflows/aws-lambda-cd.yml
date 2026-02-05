@@ -149,7 +149,7 @@ jobs:
           # Update Lambda environment variables
           aws lambda update-function-configuration \
             --function-name ${{ vars.AWS_LAMBDA_NAME }} \
-            --environment "Variables=$ENV_VARS"
+            --environment file://$ENV_FILE_PATH
           
           echo "✅ Environment variables updated successfully"
 
