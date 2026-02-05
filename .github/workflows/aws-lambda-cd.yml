@@ -67,7 +67,9 @@ jobs:
       s3-uri: ${{ steps.download-s3.outputs.s3-uri }}
 
     steps:
-      # GitHub Artifact Download
+      - name: Checkout
+        uses: actions/checkout@v5
+
       - name: Download Artifact from GitHub (current workflow)
         if: ${{ inputs.run-id == '' }}
         uses: actions/download-artifact@v4
@@ -128,13 +130,15 @@ jobs:
         run: |
           echo "🔧 Updating environment variables from: ${{ inputs.env-file }}"
           
-          if [ ! -f "${{ inputs.env-file }}" ]; then
-            echo "❌ Error: Environment file not found at ${{ inputs.env-file }}"
+          ENV_FILE_PATH="${{ inputs.artifact-path }}/${{ inputs.env-file }}"
+          
+          if [ ! -f "$ENV_FILE_PATH" ]; then
+            echo "❌ Error: Environment file not found at $ENV_FILE_PATH"
             exit 1
           fi
           
           # Read environment variables from JSON file
-          ENV_VARS=$(cat ${{ inputs.env-file }})
+          ENV_VARS=$(cat "$ENV_FILE_PATH")
           
           # Validate JSON format
           if ! echo "$ENV_VARS" | jq . > /dev/null 2>&1; then
