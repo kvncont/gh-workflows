@@ -39,6 +39,11 @@ on:
         required: false
         type: string
         default: Deployed via GitHub Actions
+      lambda-alias:
+        description: Alias name to update with the new version
+        required: false
+        type: string
+        default: stable
     secrets:
       aws-access-key-id:
         description: AWS Access Key ID
@@ -179,6 +184,38 @@ jobs:
           echo "✅ Published Lambda version: $VERSION"
           echo "📍 Version ARN: $VERSION_ARN"
 
+      - name: Update Lambda Alias
+        if: ${{ inputs.publish-version && inputs.lambda-alias != '' }}
+        run: |
+          echo "🏷️ Updating alias '${{ inputs.lambda-alias }}' to version ${{ steps.publish-version.outputs.version }}..."
+          
+          VERSION="${{ steps.publish-version.outputs.version }}"
+          ALIAS="${{ inputs.lambda-alias }}"
+          
+          # Check if alias exists
+          if aws lambda get-alias \
+            --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+            --name "$ALIAS" > /dev/null 2>&1; then
+            
+            # Update existing alias
+            aws lambda update-alias \
+              --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+              --name "$ALIAS" \
+              --function-version "$VERSION" \
+              --description "Updated via GitHub Actions"
+            
+            echo "✅ Alias '$ALIAS' updated to version $VERSION"
+          else
+            # Create new alias
+            aws lambda create-alias \
+              --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+              --name "$ALIAS" \
+              --function-version "$VERSION" \
+              --description "Created via GitHub Actions"
+            
+            echo "✅ Alias '$ALIAS' created pointing to version $VERSION"
+          fi
+
       - name: Summary
         run: |
           echo "## 🎉 Lambda Deployment Summary" >> $GITHUB_STEP_SUMMARY
@@ -195,6 +232,9 @@ jobs:
           fi
           if [ "${{ inputs.publish-version }}" == "true" ]; then
             echo "| **Version** | ${{ steps.publish-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.publish-version }}" == "true" ] && [ -n "${{ inputs.lambda-alias }}" ]; then
+            echo "| **Alias** | ${{ inputs.lambda-alias }} → v${{ steps.publish-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
           fi
           if [ -n "${{ inputs.env-file }}" ]; then
             echo "| **Env File** | ${{ inputs.env-file }} |" >> $GITHUB_STEP_SUMMARY

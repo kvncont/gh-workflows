@@ -40,3 +40,13 @@ jobs:
           pom-file: ${{ inputs.pom-file }}
           maven-goals: ${{ inputs.mvn-goals }}
           maven-opts: ${{ inputs.mvn-opts }}
+      
+      - name: Docker Build & Push
+        uses: kvncont/docker-action@main
+        with:
+          dockerfile: Dockerfile
+          context: .
+          tags: latest
+          push: true
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
