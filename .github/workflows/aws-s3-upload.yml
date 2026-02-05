@@ -50,18 +50,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download Artifact (from current workflow)
         if: ${{ inputs.run-id == '' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}
 
       - name: Download Artifact (from specific run)
         if: ${{ inputs.run-id != '' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}

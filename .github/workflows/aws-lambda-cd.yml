@@ -72,14 +72,14 @@ jobs:
 
       - name: Download Artifact from GitHub (current workflow)
         if: ${{ inputs.run-id == '' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}
 
       - name: Download Artifact from GitHub (specific run)
         if: ${{ inputs.run-id != '' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6  
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}
@@ -130,7 +130,7 @@ jobs:
         run: |
           echo "🔧 Updating environment variables from: ${{ inputs.env-file }}"
           
-          ENV_FILE_PATH="${{ inputs.artifact-path }}/${{ inputs.env-file }}"
+          ENV_FILE_PATH="${{ inputs.env-file }}"
           
           if [ ! -f "$ENV_FILE_PATH" ]; then
             echo "❌ Error: Environment file not found at $ENV_FILE_PATH"
