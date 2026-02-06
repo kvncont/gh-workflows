@@ -29,7 +29,7 @@ on:
         description: Number of days to retain the artifact
         required: false
         type: number
-        default: 5
+        default: 0
     secrets:
       aws-access-key-id:
         description: AWS Access Key ID
@@ -58,8 +58,8 @@ jobs:
       download-path: ${{ steps.download.outputs.download-path }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      # - name: Checkout
+      #   uses: actions/checkout@v6
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5
