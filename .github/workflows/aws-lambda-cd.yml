@@ -7,7 +7,6 @@ on:
         description: Deployment environment (e.g. PROD, STG, QA, DEV)
         required: false
         type: string
-        default: DEV
       aws-region:
         description: AWS region to use for Lambda operations
         required: false
