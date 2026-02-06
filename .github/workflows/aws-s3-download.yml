@@ -8,6 +8,29 @@ on:
         required: false
         type: string
         default: DEV
+      aws-region:
+        description: AWS region to use for S3 operations
+        required: false
+        type: string
+        default: us-east-1
+      aws-role-to-assume:
+        description: AWS IAM Role to assume for S3 access
+        required: false
+        type: string
+      aws-role-session-name:
+        description: AWS IAM Role session name
+        required: false
+        type: string
+        default: github-actions-session
+      aws-role-duration-seconds:
+        description: Duration in seconds for the assumed role session
+        required: false
+        type: number
+        default: 900
+      s3-bucket:
+        description: Name of the S3 bucket to download from (overrides default bucket)
+        required: true
+        type: string
       s3-prefix:
         description: S3 key prefix (folder path) to download from
         required: false
@@ -66,10 +89,10 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
-          aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          role-session-name: ${{ vars.AWS_ROLE_SESSION_NAME }}
-          role-duration-seconds: ${{ vars.AWS_ROLE_DURATION_SECONDS }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          role-session-name: ${{ inputs.aws-role-session-name }}
+          role-duration-seconds: ${{ inputs.aws-role-duration-seconds }}
 
       - name: Download from S3
         id: download
@@ -77,7 +100,7 @@ jobs:
           echo 📥 Downloading from S3...
           
           # Build S3 source URI
-          S3_BUCKET=${{ vars.AWS_S3_BUCKET }}
+          S3_BUCKET=${{ inputs.s3-bucket }}
           S3_PREFIX="${{ inputs.s3-prefix }}"
           S3_FILE="${{ inputs.s3-file }}"
           

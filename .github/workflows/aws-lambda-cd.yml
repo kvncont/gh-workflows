@@ -8,6 +8,29 @@ on:
         required: false
         type: string
         default: DEV
+      aws-region:
+        description: AWS region to use for Lambda operations
+        required: false
+        type: string
+        default: us-east-1
+      aws-role-to-assume:
+        description: AWS IAM Role to assume for Lambda access
+        required: false
+        type: string
+      aws-role-session-name:
+        description: AWS IAM Role session name
+        required: false
+        type: string
+        default: github-actions-session
+      aws-role-duration-seconds:
+        description: Duration in seconds for the assumed role session
+        required: false
+        type: number
+        default: 900
+      lambda-name:
+        description: Name of the AWS Lambda function to deploy
+        required: true
+        type: string
       artifact-name:
         description: Name of the GitHub artifact to download (when artifact-source is 'github')
         required: false
@@ -96,15 +119,15 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
-          aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          role-session-name: ${{ vars.AWS_ROLE_SESSION_NAME }}
-          role-duration-seconds: ${{ vars.AWS_ROLE_DURATION_SECONDS }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          role-session-name: ${{ inputs.aws-role-session-name }}
+          role-duration-seconds: ${{ inputs.aws-role-duration-seconds }}
 
       - name: Update Lambda Code
         id: update-code
         run: |
-          echo "🚀 Updating Lambda function code: ${{ vars.AWS_LAMBDA_NAME }}"
+          echo "🚀 Updating Lambda function code: ${{ inputs.lambda-name }}"
           
           ZIP_PATH="${{ inputs.artifact-path }}/${{ inputs.zip-file }}"
           
@@ -114,7 +137,7 @@ jobs:
           fi
           
           RESULT=$(aws lambda update-function-code \
-            --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+            --function-name ${{ inputs.lambda-name }} \
             --zip-file fileb://$ZIP_PATH \
             --output json)
           
@@ -127,7 +150,7 @@ jobs:
         run: |
           echo "⏳ Waiting for Lambda function to be ready..."
           aws lambda wait function-updated \
-            --function-name ${{ vars.AWS_LAMBDA_NAME }}
+            --function-name ${{ inputs.lambda-name }}
           echo "✅ Lambda function is ready"
 
       - name: Update Environment Variables
@@ -153,7 +176,7 @@ jobs:
           
           # Update Lambda environment variables
           aws lambda update-function-configuration \
-            --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+            --function-name ${{ inputs.lambda-name }} \
             --environment file://$ENV_FILE_PATH
           
           echo "✅ Environment variables updated successfully"
@@ -163,7 +186,7 @@ jobs:
         run: |
           echo "⏳ Waiting for Lambda configuration to be ready..."
           aws lambda wait function-updated \
-            --function-name ${{ vars.AWS_LAMBDA_NAME }}
+            --function-name ${{ inputs.lambda-name }}
           echo "✅ Lambda configuration is ready"
 
       - name: Publish Lambda Version
@@ -173,7 +196,7 @@ jobs:
           echo "📌 Publishing new Lambda version..."
           
           RESULT=$(aws lambda publish-version \
-            --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+            --function-name ${{ inputs.lambda-name }} \
             --description "${{ inputs.version-description }}" \
             --output json)
           
@@ -194,12 +217,12 @@ jobs:
           
           # Check if alias exists
           if aws lambda get-alias \
-            --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+            --function-name ${{ inputs.lambda-name }} \
             --name "$ALIAS" > /dev/null 2>&1; then
             
             # Update existing alias
             aws lambda update-alias \
-              --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+              --function-name ${{ inputs.lambda-name }} \
               --name "$ALIAS" \
               --function-version "$VERSION" \
               --description "Updated via GitHub Actions"
@@ -208,7 +231,7 @@ jobs:
           else
             # Create new alias
             aws lambda create-alias \
-              --function-name ${{ vars.AWS_LAMBDA_NAME }} \
+              --function-name ${{ inputs.lambda-name }} \
               --name "$ALIAS" \
               --function-version "$VERSION" \
               --description "Created via GitHub Actions"
@@ -222,8 +245,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Lambda Name** | ${{ vars.AWS_LAMBDA_NAME }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Region** | ${{ vars.AWS_REGION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Lambda Name** | ${{ inputs.lambda-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Region** | ${{ inputs.aws-region }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Artifact Source** | ${{ inputs.artifact-source }} |" >> $GITHUB_STEP_SUMMARY
           if [ "${{ inputs.artifact-source }}" == "s3" ]; then
             echo "| **S3 URI** | ${{ steps.download-s3.outputs.s3-uri }} |" >> $GITHUB_STEP_SUMMARY
