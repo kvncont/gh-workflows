@@ -48,7 +48,7 @@ on:
         required: true
         type: string
       env-file:
-        description: Path to the environment variables file (JSON format)
+        description: Path to the environment variables file (YAML format)
         required: false
         type: string
       publish-version:
@@ -164,19 +164,37 @@ jobs:
             exit 1
           fi
           
-          # Read environment variables from JSON file
-          ENV_VARS=$(cat "$ENV_FILE_PATH")
+          # Install yq if not available
+          if ! command -v yq &> /dev/null; then
+            echo "📦 Installing yq..."
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          fi
+          
+          # Convert YAML to Lambda JSON format
+          # - Extract env-vars section
+          # - Convert keys to UPPERCASE and replace - with _
+          # - Wrap in {"Variables": {...}}
+          echo "📄 Converting YAML to Lambda environment format..."
+          
+          ENV_JSON=$(yq -o=json '.["env-vars"] | to_entries | map(.key |= (upcase | sub("-"; "_"))) | from_entries | {"Variables": .}' "$ENV_FILE_PATH")
           
           # Validate JSON format
-          if ! echo "$ENV_VARS" | jq . > /dev/null 2>&1; then
-            echo "❌ Error: Invalid JSON format in environment file"
+          if ! echo "$ENV_JSON" | jq . > /dev/null 2>&1; then
+            echo "❌ Error: Failed to convert YAML to valid JSON"
             exit 1
           fi
+          
+          echo "📋 Variables to update:"
+          echo "$ENV_JSON" | jq -r '.Variables | keys[]'
+          
+          # Write to temp file for AWS CLI
+          echo "$ENV_JSON" > /tmp/env-vars.json
           
           # Update Lambda environment variables
           aws lambda update-function-configuration \
             --function-name ${{ inputs.lambda-name }} \
-            --environment file://$ENV_FILE_PATH
+            --environment file:///tmp/env-vars.json
           
           echo "✅ Environment variables updated successfully"
 
@@ -246,12 +264,7 @@ jobs:
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Lambda Name** | ${{ inputs.lambda-name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Region** | ${{ inputs.aws-region }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Artifact Source** | ${{ inputs.artifact-source }} |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.artifact-source }}" == "s3" ]; then
-            echo "| **S3 URI** | ${{ steps.download-s3.outputs.s3-uri }} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| **Artifact Name** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "| **Artifact Name** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
           if [ "${{ inputs.publish-version }}" == "true" ]; then
             echo "| **Version** | ${{ steps.publish-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
           fi
