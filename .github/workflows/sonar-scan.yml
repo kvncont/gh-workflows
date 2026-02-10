@@ -110,7 +110,7 @@ jobs:
 
       - name: Sonar Quality Gate Check
         id: quality-gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1
+        uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
         with:
           pollingTimeoutSec: ${{ inputs.quality-gate-timeout }}
         env:
