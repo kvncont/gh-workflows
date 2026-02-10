@@ -111,7 +111,8 @@ jobs:
       - name: Sonar Quality Gate Check
         id: quality-gate
         uses: SonarSource/sonarqube-quality-gate-action@v1
-        timeout-minutes: ${{ inputs.quality-gate-timeout }}
+        with:
+          pollingTimeoutSec: ${{ inputs.quality-gate-timeout * 60 }}
         env:
           SONAR_TOKEN: ${{ secrets.sonar-token }}
           SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
