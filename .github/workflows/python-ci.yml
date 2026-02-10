@@ -53,6 +53,21 @@ on:
         required: false
         type: boolean
         default: false
+      run-coverage:
+        description: Whether to generate coverage report
+        required: false
+        type: boolean
+        default: false
+      coverage-file:
+        description: Name of the coverage report file
+        required: false
+        type: string
+        default: coverage.xml
+      coverage-artifact-name:
+        description: Name of the coverage artifact to upload
+        required: false
+        type: string
+        default: coverage-report
       test-command:
         description: Command to run tests
         required: false
@@ -76,10 +91,16 @@ on:
     outputs:
       artifact-name:
         description: Name of the uploaded artifact
-        value: ${{ jobs.build.outputs.artifact-name }}
+        value: ${{ jobs.python-ci.outputs.artifact-name }}
       zip-name:
         description: Name of the ZIP file
-        value: ${{ jobs.build.outputs.zip-name }}
+        value: ${{ jobs.python-ci.outputs.zip-name }}
+      coverage-file:
+        description: Name of the coverage report file
+        value: ${{ jobs.python-ci.outputs.coverage-file }}
+      coverage-artifact-name:
+        description: Name of the coverage artifact
+        value: ${{ jobs.python-ci.outputs.coverage-artifact-name }}
 
 jobs:
   python-ci:
@@ -87,6 +108,8 @@ jobs:
     outputs:
       artifact-name: ${{ inputs.artifact-name }}
       zip-name: ${{ inputs.zip-name }}
+      coverage-file: ${{ inputs.coverage-file }}
+      coverage-artifact-name: ${{ inputs.coverage-artifact-name }}
 
     defaults:
       run:
@@ -126,7 +149,20 @@ jobs:
         run: |
           echo "🧪 Running tests..."
           pip install pytest
-          ${{ inputs.test-command }}
+          if [ "${{ inputs.run-coverage }}" == "true" ]; then
+            pip install pytest-cov
+            ${{ inputs.test-command }} --cov=. --cov-report=xml:${{ inputs.coverage-file }}
+          else
+            ${{ inputs.test-command }}
+          fi
+
+      - name: Upload Coverage Report
+        if: ${{ inputs.run-tests && inputs.run-coverage }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.coverage-artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.coverage-file }}
+          retention-days: ${{ inputs.artifact-retention-days }}
 
       - name: Create ZIP Package
         run: |

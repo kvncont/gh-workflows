@@ -1,0 +1,146 @@
+name: Sonar Scan
+
+on:
+  workflow_call:
+    inputs:
+      sonar-host-url:
+        description: "SonarQube server URL (leave empty for SonarCloud)"
+        required: false
+        type: string
+        default: "https://sonarcloud.io"
+      sonar-organization:
+        description: "SonarCloud organization (required for SonarCloud)"
+        required: false
+        type: string
+      sonar-project-key:
+        description: "Sonar project key (optional if defined in sonar-project.properties)"
+        required: false
+        type: string
+      sonar-project-name:
+        description: "Sonar project name"
+        required: false
+        type: string
+      working-directory:
+        description: "Working directory"
+        required: false
+        type: string
+        default: "."
+      sonar-sources:
+        description: "Comma-separated paths to source directories"
+        required: false
+        type: string
+        default: "."
+      sonar-exclusions:
+        description: "Comma-separated patterns to exclude from analysis"
+        required: false
+        type: string
+        default: "**/test/**,**/tests/**,**/*_test.py,**/node_modules/**,**/venv/**,**/__pycache__/**"
+      coverage-report-path:
+        description: "Path to coverage report file (e.g., coverage.xml for Python)"
+        required: false
+        type: string
+      coverage-artifact-name:
+        description: "Name of the artifact containing the coverage report (if generated in a previous job)"
+        required: false
+        type: string
+      sonar-args:
+        description: "Additional arguments for sonar-scanner"
+        required: false
+        type: string
+      fail-on-quality-gate:
+        description: "Whether to fail if quality gate fails"
+        required: false
+        type: boolean
+        default: true
+      quality-gate-timeout:
+        description: "Timeout in minutes for Quality Gate check"
+        required: false
+        type: number
+        default: 5
+    secrets:
+      sonar-token:
+        description: "SonarCloud token"
+        required: true
+    outputs:
+      quality-gate-status:
+        description: "Quality gate status (PASSED, FAILED, etc.)"
+        value: ${{ jobs.sonar-scan.outputs.quality-gate-status }}
+
+jobs:
+  sonar-scan:
+    runs-on: ubuntu-latest
+    outputs:
+      quality-gate-status: ${{ steps.quality-gate.outputs.quality-gate-status }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache Sonar packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Download Coverage Report
+        if: ${{ inputs.coverage-artifact-name != '' }}
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ inputs.coverage-artifact-name }}
+          path: ${{ inputs.working-directory }}
+
+      - name: Sonar Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.sonar-token }}
+          SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
+        with:
+          projectBaseDir: ${{ inputs.working-directory }}
+          args: >
+            ${{ inputs.sonar-project-key != '' && format('-Dsonar.projectKey={0}', inputs.sonar-project-key) || '' }}
+            ${{ inputs.sonar-organization != '' && format('-Dsonar.organization={0}', inputs.sonar-organization) || '' }}
+            ${{ inputs.sonar-sources != '.' && format('-Dsonar.sources={0}', inputs.sonar-sources) || '' }}
+            ${{ inputs.sonar-exclusions != '' && format('-Dsonar.exclusions={0}', inputs.sonar-exclusions) || '' }}
+            ${{ inputs.sonar-project-name != '' && format('-Dsonar.projectName={0}', inputs.sonar-project-name) || '' }}
+            ${{ inputs.coverage-report-path != '' && format('-Dsonar.python.coverage.reportPaths={0}', inputs.coverage-report-path) || '' }}
+            ${{ inputs.sonar-args }}
+
+      - name: Sonar Quality Gate Check
+        id: quality-gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: ${{ inputs.quality-gate-timeout }}
+        env:
+          SONAR_TOKEN: ${{ secrets.sonar-token }}
+          SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
+        continue-on-error: ${{ !inputs.fail-on-quality-gate }}
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          echo "## 🔍 Sonar Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.sonar-project-key }}" ]; then
+            echo "| **Project Key** | ${{ inputs.sonar-project-key }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Project Key** | (from sonar-project.properties) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -n "${{ inputs.sonar-organization }}" ]; then
+            echo "| **Organization** | ${{ inputs.sonar-organization }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -n "${{ inputs.sonar-host-url }}" ]; then
+            echo "| **Sonar URL** | ${{ inputs.sonar-host-url }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Sonar URL** | SonarCloud |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "| **Quality Gate** | ${{ steps.quality-gate.outputs.quality-gate-status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.quality-gate.outputs.quality-gate-status }}" == "PASSED" ]; then
+            echo "✅ Analysis completed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Quality Gate did not pass" >> $GITHUB_STEP_SUMMARY
+          fi
