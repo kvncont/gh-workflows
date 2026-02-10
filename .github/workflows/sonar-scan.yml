@@ -53,10 +53,10 @@ on:
         type: boolean
         default: true
       quality-gate-timeout:
-        description: "Timeout in minutes for Quality Gate check"
+        description: "Timeout in seconds for Quality Gate check"
         required: false
         type: number
-        default: 5
+        default: 300
     secrets:
       sonar-token:
         description: "SonarCloud token"
@@ -112,7 +112,7 @@ jobs:
         id: quality-gate
         uses: SonarSource/sonarqube-quality-gate-action@v1
         with:
-          pollingTimeoutSec: ${{ inputs.quality-gate-timeout * 60 }}
+          pollingTimeoutSec: ${{ inputs.quality-gate-timeout }}
         env:
           SONAR_TOKEN: ${{ secrets.sonar-token }}
           SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
