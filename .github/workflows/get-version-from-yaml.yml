@@ -1,0 +1,34 @@
+name: Get Version from YAML
+
+on:
+  workflow_call:
+    inputs:
+      config-file:
+        description: "Path to the YAML config file (default: config/dev.yml)"
+        required: false
+        type: string
+        default: "config/dev.yml"
+    outputs:
+      version:
+        description: "Extracted version from the YAML file"
+        value: ${{ jobs.get-version.outputs.version }}
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get version from config file
+        id: get-version
+        run: |
+          VERSION=$(yq '.version' ${{ inputs.config-file }})
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "❌ No se encontró la key 'version' en el archivo: ${{ inputs.config-file }}"
+            exit 1
+          fi
+          echo "La versión detectada es: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
