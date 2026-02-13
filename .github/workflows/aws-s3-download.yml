@@ -3,10 +3,6 @@ name: AWS S3 Download
 on:
   workflow_call:
     inputs:
-      environment:
-        description: Deployment environment (e.g. PROD, STG, QA, DEV)
-        required: false
-        type: string
       aws-region:
         description: AWS region to use for S3 operations
         required: false
@@ -72,7 +68,6 @@ on:
 
 jobs:
   s3-download:
-    environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     outputs:
       s3-uri: ${{ steps.download.outputs.s3-uri }}
@@ -80,9 +75,6 @@ jobs:
       download-path: ${{ steps.download.outputs.download-path }}
 
     steps:
-      # - name: Checkout
-      #   uses: actions/checkout@v6
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:

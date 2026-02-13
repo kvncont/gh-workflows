@@ -3,10 +3,6 @@ name: AWS S3 Upload
 on:
   workflow_call:
     inputs:
-      environment:
-        description: Deployment environment (e.g. PROD, STG, QA, DEV)
-        required: false
-        type: string
       aws-region:
         description: AWS region to use for S3 operations
         required: false
@@ -64,16 +60,12 @@ on:
 
 jobs:
   s3-upload:
-    environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     outputs:
       s3-uri: ${{ steps.upload.outputs.s3-uri }}
       files-uploaded: ${{ steps.upload.outputs.files-uploaded }}
 
     steps:
-      # - name: Checkout
-      #   uses: actions/checkout@v6
-
       - name: Download Artifact (from current workflow)
         if: ${{ inputs.run-id == '' }}
         uses: actions/download-artifact@v6
