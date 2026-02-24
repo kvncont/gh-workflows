@@ -82,7 +82,7 @@ on:
         description: Command to run linting
         required: false
         type: string
-        default: flake8 .
+        default: flake8 . --max-line-length=88 --extend-ignore=E203,W503
       exclude-patterns:
         description: Patterns to exclude from ZIP (comma-separated)
         required: false
