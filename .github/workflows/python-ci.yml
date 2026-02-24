@@ -18,7 +18,7 @@ on:
         required: false
         type: string
         default: requirements.txt
-      dev-requirements-file:
+      requirements-dev-file:
         description: Path to development requirements file (used only for tests)
         required: false
         type: string
@@ -153,12 +153,12 @@ jobs:
         if: ${{ inputs.run-tests }}
         run: |
           echo "🧪 Running tests..."
-          if [ -n "${{ inputs.dev-requirements-file }}" ]; then
-            if [ -f "${{ inputs.dev-requirements-file }}" ]; then
+          if [ -n "${{ inputs.requirements-dev-file }}" ]; then
+            if [ -f "${{ inputs.requirements-dev-file }}" ]; then
               echo "📦 Installing development dependencies..."
-              pip install -r ${{ inputs.dev-requirements-file }}
+              pip install -r ${{ inputs.requirements-dev-file }}
             else
-              echo "⚠️ Development requirements file not found: ${{ inputs.dev-requirements-file }}"
+              echo "⚠️ Development requirements file not found: ${{ inputs.requirements-dev-file }}"
             fi
           fi
           pip install pytest
