@@ -18,6 +18,11 @@ on:
         required: false
         type: string
         default: requirements.txt
+      dev-requirements-file:
+        description: Path to development requirements file (used only for tests)
+        required: false
+        type: string
+        default: requirements.txt
       install-dependencies:
         description: Whether to install dependencies
         required: false
@@ -148,6 +153,14 @@ jobs:
         if: ${{ inputs.run-tests }}
         run: |
           echo "🧪 Running tests..."
+          if [ -n "${{ inputs.dev-requirements-file }}" ]; then
+            if [ -f "${{ inputs.dev-requirements-file }}" ]; then
+              echo "📦 Installing development dependencies..."
+              pip install -r ${{ inputs.dev-requirements-file }}
+            else
+              echo "⚠️ Development requirements file not found: ${{ inputs.dev-requirements-file }}"
+            fi
+          fi
           pip install pytest
           if [ "${{ inputs.run-coverage }}" == "true" ]; then
             pip install pytest-cov
