@@ -119,8 +119,8 @@ jobs:
         if: ${{ inputs.run-linting }}
         run: |
           echo "🔍 Running linting..."
-          ruff check .
-          ruff format --check .
+          uv run ruff check .
+          uv run ruff format --check .
 
       - name: Run Tests
         if: ${{ inputs.run-tests }}
