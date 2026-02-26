@@ -168,6 +168,7 @@ jobs:
               continue
             fi
             ZIP_EXCLUDE_FILE_ARGS+=("-x" "$pattern")
+            ZIP_EXCLUDE_FILE_ARGS+=("-x" "*/$pattern")
           done
 
           IFS=',' read -ra DIR_PATTERNS <<< "${{ inputs.exclude-dir-patterns }}"
@@ -178,7 +179,8 @@ jobs:
             fi
 
             pattern="${pattern%/}"
-            ZIP_EXCLUDE_DIR_ARGS+=("-x" "$pattern/*" "-x" "$pattern/**")
+            ZIP_EXCLUDE_DIR_ARGS+=("-x" "$pattern" "-x" "$pattern/*" "-x" "$pattern/**")
+            ZIP_EXCLUDE_DIR_ARGS+=("-x" "*/$pattern" "-x" "*/$pattern/*" "-x" "*/$pattern/**")
           done
 
           if [ "${{ inputs.include-dependencies }}" == "true" ]; then
