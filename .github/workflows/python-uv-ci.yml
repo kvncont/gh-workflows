@@ -1,0 +1,200 @@
+name: Python UV CI
+
+on:
+  workflow_call:
+    inputs:
+      python-version-file:
+        description: Python version to use
+        required: false
+        type: string
+        default: pyproject.toml
+      uv-version:
+        description: uv version to use
+        required: false
+        type: string
+        default: 0.10.6
+      working-directory:
+        description: Working directory for the Python project
+        required: false
+        type: string
+        default: "."
+      include-dependencies:
+        description: Whether to include dependencies in the ZIP
+        required: false
+        type: boolean
+        default: true
+      source-dir:
+        description: Source directory to include in ZIP
+        required: false
+        type: string
+        default: src
+      zip-name:
+        description: Name of the output ZIP file
+        required: false
+        type: string
+        default: lambda.zip
+      artifact-name:
+        description: Name of the artifact to upload
+        required: false
+        type: string
+        default: python-lambda
+      artifact-retention-days:
+        description: Number of days to retain the artifact
+        required: false
+        type: number
+        default: 0
+      run-tests:
+        description: Whether to run tests
+        required: false
+        type: boolean
+        default: false
+      run-coverage:
+        description: Whether to generate coverage report
+        required: false
+        type: boolean
+        default: false
+      coverage-file:
+        description: Name of the coverage report file
+        required: false
+        type: string
+        default: coverage.xml
+      coverage-artifact-name:
+        description: Name of the coverage artifact to upload
+        required: false
+        type: string
+        default: coverage-report
+      run-linting:
+        description: Whether to run linting
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      artifact-name:
+        description: Name of the uploaded artifact
+        value: ${{ jobs.python-uv-ci.outputs.artifact-name }}
+      zip-name:
+        description: Name of the ZIP file
+        value: ${{ jobs.python-uv-ci.outputs.zip-name }}
+      coverage-file:
+        description: Name of the coverage report file
+        value: ${{ jobs.python-uv-ci.outputs.coverage-file }}
+      coverage-artifact-name:
+        description: Name of the coverage artifact
+        value: ${{ jobs.python-uv-ci.outputs.coverage-artifact-name }}
+
+jobs:
+  python-uv-ci:
+    runs-on: ubuntu-latest
+    env:
+      UV_SYSTEM_PYTHON: 1
+    outputs:
+      artifact-name: ${{ inputs.artifact-name }}
+      zip-name: ${{ inputs.zip-name }}
+      coverage-file: ${{ inputs.coverage-file }}
+      coverage-artifact-name: ${{ inputs.coverage-artifact-name }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: ${{ inputs.python-version-file }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ inputs.uv-version }}
+          enable-cache: true
+
+      - name: Install Project Dependencies
+        run: uv sync --locked --all-extras --all-groups
+
+      - name: Run Linting & Formatting Checks
+        if: ${{ inputs.run-linting }}
+        run: |
+          echo "🔍 Running linting..."
+          ruff check .
+          ruff format --check .
+
+      - name: Run Tests
+        if: ${{ inputs.run-tests }}
+        run: |
+          echo "🧪 Running tests..."
+          if [ "${{ inputs.run-coverage }}" == "true" ]; then
+            uv run pytest tests --cov=. --cov-report=xml:${{ inputs.coverage-file }}
+          else
+            uv run pytest tests
+          fi
+
+      - name: Upload Coverage Report
+        if: ${{ inputs.run-tests && inputs.run-coverage }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.coverage-artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.coverage-file }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Create ZIP Package
+        run: |
+          echo "Getting python version from pyproject.toml..."
+          version=$(grep '^requires-python' pyproject.toml | sed -E 's/.*"[><=~!]*([0-9]+(\.[0-9]+)*)".*/\1/')
+
+          echo "📦 Creating ZIP package..."
+          if [ "${{ inputs.include-dependencies }}" == "true" ]; then
+            echo "📤 Exporting dependencies with uv..."
+            uv export --frozen --no-dev --no-editable -o requirements.txt
+
+            echo "📥 Installing dependencies..."
+            uv pip install \
+              --no-installer-metadata \
+              --no-compile-bytecode \
+              --python-platform x86_64-manylinux2014 \
+              --python $version \
+              --target packages \
+              -r requirements.txt
+
+            cd packages
+            zip -r ../"${{ inputs.zip-name }}" .
+            cd ..
+            zip -r "${{ inputs.zip-name }}" "${{ inputs.source-dir }}"
+          fi
+
+          echo "📋 Adding source files from: ${{ inputs.source-dir }}"
+          zip -r "${{ inputs.zip-name }}" "${{ inputs.source-dir }}"
+
+          echo "✅ ZIP file created successfully"
+          ls -lh "${{ inputs.zip-name }}"
+          echo "📊 ZIP contents count: $(unzip -l "${{ inputs.zip-name }}" | tail -1)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.zip-name }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Minimize uv Cache
+        if: ${{ always() }}
+        run: uv cache prune --ci
+
+      - name: Summary
+        run: |
+          echo "## 🐍 Python UV CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Python Version File** | ${{ inputs.python-version-file }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **uv Version** | ${{ inputs.uv-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **ZIP File** | ${{ inputs.zip-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifact Name** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Include Dependencies** | ${{ inputs.include-dependencies }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests Executed** | ${{ inputs.run-tests }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Linting Executed** | ${{ inputs.run-linting }} |" >> $GITHUB_STEP_SUMMARY
+          ZIP_SIZE=$(ls -lh "${{ inputs.zip-name }}" | awk '{print $5}')
+          echo "| **ZIP Size** | $ZIP_SIZE |" >> $GITHUB_STEP_SUMMARY
