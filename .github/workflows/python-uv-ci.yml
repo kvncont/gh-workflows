@@ -68,11 +68,16 @@ on:
         required: false
         type: boolean
         default: false
-      exclude-patterns:
-        description: Patterns to exclude from ZIP (comma-separated)
+      exclude-file-patterns:
+        description: File patterns to exclude from ZIP (comma-separated)
         required: false
         type: string
-        default: "__pycache__,*.pyc,*.pyo,*.dist-info,*.egg-info,.git,.pytest_cache,tests,test_*"
+        default: "*.pyc,*.pyo,*.dist-info/*,*.egg-info/*"
+      exclude-dir-patterns:
+        description: Directory patterns to exclude from ZIP (comma-separated)
+        required: false
+        type: string
+        default: "__pycache__,.git,.pytest_cache,tests"
     outputs:
       artifact-name:
         description: Name of the uploaded artifact
@@ -153,10 +158,27 @@ jobs:
           echo "📦 Creating ZIP package..."
           rm -f "${{ inputs.zip-name }}"
 
-          ZIP_EXCLUDE_ARGS=()
-          IFS=',' read -ra PATTERNS <<< "${{ inputs.exclude-patterns }}"
-          for pattern in "${PATTERNS[@]}"; do
-            ZIP_EXCLUDE_ARGS+=("-x" "$pattern")
+          ZIP_EXCLUDE_FILE_ARGS=()
+          ZIP_EXCLUDE_DIR_ARGS=()
+
+          IFS=',' read -ra FILE_PATTERNS <<< "${{ inputs.exclude-file-patterns }}"
+          for raw_pattern in "${FILE_PATTERNS[@]}"; do
+            pattern=$(echo "$raw_pattern" | xargs)
+            if [ -z "$pattern" ]; then
+              continue
+            fi
+            ZIP_EXCLUDE_FILE_ARGS+=("-x" "$pattern")
+          done
+
+          IFS=',' read -ra DIR_PATTERNS <<< "${{ inputs.exclude-dir-patterns }}"
+          for raw_pattern in "${DIR_PATTERNS[@]}"; do
+            pattern=$(echo "$raw_pattern" | xargs)
+            if [ -z "$pattern" ]; then
+              continue
+            fi
+
+            pattern="${pattern%/}"
+            ZIP_EXCLUDE_DIR_ARGS+=("-x" "$pattern/*" "-x" "$pattern/**")
           done
 
           if [ "${{ inputs.include-dependencies }}" == "true" ]; then
@@ -173,12 +195,12 @@ jobs:
               -r requirements.txt
 
             cd packages
-            zip -r ../"${{ inputs.zip-name }}" . "${ZIP_EXCLUDE_ARGS[@]}"
+            zip -r ../"${{ inputs.zip-name }}" . "${ZIP_EXCLUDE_FILE_ARGS[@]}" "${ZIP_EXCLUDE_DIR_ARGS[@]}"
             cd ..
           fi
 
           echo "📋 Adding source files from: ${{ inputs.source-dir }}"
-          zip -r "${{ inputs.zip-name }}" "${{ inputs.source-dir }}" "${ZIP_EXCLUDE_ARGS[@]}"
+          zip -r "${{ inputs.zip-name }}" "${{ inputs.source-dir }}" "${ZIP_EXCLUDE_FILE_ARGS[@]}" "${ZIP_EXCLUDE_DIR_ARGS[@]}"
 
           echo "✅ ZIP file created successfully"
           ls -lh "${{ inputs.zip-name }}"
